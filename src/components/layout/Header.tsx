@@ -105,18 +105,16 @@ export function Header() {
           </div>
 
           <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button className="flex items-center rounded-xl bg-white text-sm focus:outline-none ring-2 ring-indigo-500/10 hover:ring-indigo-500/30 transition-all p-0.5 outline-none">
-                <div className="h-9 w-9 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-600 flex items-center justify-center shadow-md overflow-hidden">
-                  {userProfile?.avatar_url ? (
-                    <img src={userProfile.avatar_url} alt="Profile" className="h-full w-full object-cover" />
-                  ) : (
-                    <User className="h-5 w-5 text-white" />
-                  )}
-                </div>
-              </button>
+            <DropdownMenuTrigger className="flex items-center rounded-xl bg-white text-sm focus:outline-none ring-2 ring-indigo-500/10 hover:ring-indigo-500/30 transition-all p-0.5 outline-none cursor-pointer">
+              <div className="h-9 w-9 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-600 flex items-center justify-center shadow-md overflow-hidden">
+                {userProfile?.avatar_url ? (
+                  <img src={userProfile.avatar_url} alt="Profile" className="h-full w-full object-cover" />
+                ) : (
+                  <User className="h-5 w-5 text-white" />
+                )}
+              </div>
             </DropdownMenuTrigger>
-            <DropdownMenuContent className="w-56 mt-2 rounded-xl shadow-xl border-slate-100 p-1" align="end" forceMount>
+            <DropdownMenuContent className="w-56 mt-2 rounded-xl shadow-xl border-slate-100 p-1" align="end">
               <DropdownMenuLabel className="font-normal p-2">
                 <div className="flex flex-col space-y-1">
                   <p className="text-sm font-bold leading-none">{userProfile?.first_name} {userProfile?.last_name}</p>
