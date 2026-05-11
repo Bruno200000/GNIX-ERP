@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
-import { Bell, Shield, User, Globe, Moon, CreditCard } from "lucide-react"
+import { Bell, Shield, User, Globe, Moon, CreditCard, Sparkles, Lock } from "lucide-react"
 
 export default function SettingsPage() {
   return (
