@@ -5,6 +5,10 @@ import { cookies } from "next/headers"
 import type { SupabaseClient, User } from "@supabase/supabase-js"
 import { createClient } from "@/lib/supabase/server"
 
+function shouldUseLocalSeedData() {
+  return process.env.NEXT_PUBLIC_USE_LOCAL_SEED === "true"
+}
+
 function getDataFilePath() {
   const baseDir = process.env.NODE_ENV === "production" ? "/tmp" : process.cwd()
   return path.join(baseDir, ".data", "erp-db.json")
@@ -1105,6 +1109,10 @@ function mergeStore(target: ErpStore, source: ErpStore) {
 }
 
 async function readStore(): Promise<ErpStore> {
+  if (!shouldUseLocalSeedData()) {
+    return emptyStore()
+  }
+
   try {
     const raw = await readFile(dataFile, "utf8")
     return { ...emptyStore(), ...JSON.parse(raw) } as ErpStore
@@ -1114,6 +1122,10 @@ async function readStore(): Promise<ErpStore> {
 }
 
 async function writeStore(store: ErpStore) {
+  if (!shouldUseLocalSeedData()) {
+    return
+  }
+
   try {
     await mkdir(path.dirname(getDataFilePath()), { recursive: true })
     await writeFile(getDataFilePath(), JSON.stringify(store, null, 2), "utf8")
@@ -1233,6 +1245,11 @@ async function getDbContext(): Promise<DbContext> {
 
 async function readWorkspaceStore(ctx: DbContext) {
   const store = await readStore()
+
+  if (!shouldUseLocalSeedData()) {
+    return emptyStore()
+  }
+
   const hasOrganization = store.organizations.some((org) => org.id === ctx.orgId)
 
   if (!hasOrganization) {
