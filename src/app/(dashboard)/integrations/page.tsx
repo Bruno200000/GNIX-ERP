@@ -1,5 +1,7 @@
 import { getIntegrationsData, toggleIntegrationData } from "@/lib/erp-data"
 import { revalidatePath } from "next/cache"
+import { ConnectAppDialog } from "@/components/integrations/ConnectAppDialog"
+import { ProposeIntegrationDialog } from "@/components/integrations/ProposeIntegrationDialog"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -74,29 +76,48 @@ export default async function IntegrationsPage() {
                 <p className="text-sm text-slate-500 leading-relaxed mb-6">
                   {app.description}
                 </p>
-                <form action={toggleIntegration}>
-                  <input type="hidden" name="integration_id" value={app.id} />
-                  <Button 
-                    type="submit"
-                    variant={app.status === "connected" ? "outline" : "default"} 
-                    className={`w-full gap-2 rounded-xl h-11 ${app.status === "available" ? "bg-slate-900 text-white" : ""}`}
-                  >
-                    {app.status === "connected" ? "Desactiver" : "Connecter"}
-                    <ArrowRight className="h-4 w-4" />
-                  </Button>
-                </form>
+                {app.status === "connected" ? (
+                  <form action={toggleIntegration}>
+                    <input type="hidden" name="integration_id" value={app.id} />
+                    <Button 
+                      type="submit"
+                      variant="outline"
+                      className="w-full gap-2 rounded-xl h-11"
+                    >
+                      Desactiver
+                      <ArrowRight className="h-4 w-4" />
+                    </Button>
+                  </form>
+                ) : (
+                  <ConnectAppDialog
+                    appId={app.id}
+                    appName={app.name}
+                    action={toggleIntegration}
+                    trigger={
+                      <Button 
+                        type="button"
+                        className="w-full gap-2 rounded-xl h-11 bg-slate-900 text-white"
+                      >
+                        Connecter
+                        <ArrowRight className="h-4 w-4" />
+                      </Button>
+                    }
+                  />
+                )}
               </CardContent>
             </Card>
           )
         })}
 
-        <Card className="border-dashed border-2 bg-slate-50/50 flex flex-col items-center justify-center p-8 text-center cursor-pointer hover:bg-slate-50 transition-colors">
-          <div className="h-12 w-12 bg-white rounded-full flex items-center justify-center shadow-sm mb-4">
-            <Plus className="h-6 w-6 text-slate-400" />
-          </div>
-          <CardTitle className="text-sm font-bold text-slate-600">Proposer une integration</CardTitle>
-          <p className="text-xs text-slate-400 mt-2">Vous avez un outil specifique ?<br/>Contactez notre equipe IA.</p>
-        </Card>
+        <ProposeIntegrationDialog trigger={
+          <Card className="border-dashed border-2 bg-slate-50/50 flex flex-col items-center justify-center p-8 text-center cursor-pointer hover:bg-slate-50 transition-colors h-full">
+            <div className="h-12 w-12 bg-white rounded-full flex items-center justify-center shadow-sm mb-4">
+              <Plus className="h-6 w-6 text-slate-400" />
+            </div>
+            <CardTitle className="text-sm font-bold text-slate-600">Proposer une integration</CardTitle>
+            <p className="text-xs text-slate-400 mt-2">Vous avez un outil specifique ?<br/>Contactez notre equipe IA.</p>
+          </Card>
+        } />
       </div>
 
       <div className="mt-12 p-8 bg-indigo-900 rounded-3xl text-white relative overflow-hidden shadow-2xl">

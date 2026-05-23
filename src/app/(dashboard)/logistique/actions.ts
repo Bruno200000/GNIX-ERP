@@ -5,10 +5,15 @@ import {
   createDeliveryNoteData,
   createProductData,
   createStockEntryData,
+  createWarehouseData,
+  updateInventoryLocationData,
+  transferStockData,
   getDeliveryNotesData,
   getProductsData,
   getShipmentsData,
   getWarehousesData,
+  getPurchaseOrdersData,
+  createPurchaseOrderData,
   type DeliveryItem,
   type InventoryRecord,
   type ProductRecord,
@@ -39,6 +44,10 @@ export async function getWarehouses() {
   return getWarehousesData()
 }
 
+export async function getPurchaseOrders() {
+  return getPurchaseOrdersData()
+}
+
 export async function getDeliveryNotes() {
   return getDeliveryNotesData()
 }
@@ -59,8 +68,31 @@ export async function addStockEntry(formData: FormData) {
   revalidatePath('/logistique/warehouses')
 }
 
+export async function addWarehouse(formData: FormData) {
+  await createWarehouseData(formData)
+  revalidatePath('/logistique')
+  revalidatePath('/logistique/warehouses')
+}
+
+export async function updateInventoryLocation(formData: FormData) {
+  await updateInventoryLocationData(formData)
+  revalidatePath('/logistique')
+  revalidatePath('/logistique/warehouses')
+}
+
+export async function transferStock(formData: FormData) {
+  await transferStockData(formData)
+  revalidatePath('/logistique')
+  revalidatePath('/logistique/warehouses')
+}
+
 export async function createDeliveryNote(formData: FormData, items: DeliveryItem[]) {
   await createDeliveryNoteData(formData, items)
   revalidatePath('/logistique/delivery-notes')
+  revalidatePath('/logistique')
+}
+
+export async function addPurchaseOrder(formData: FormData) {
+  await createPurchaseOrderData(formData)
   revalidatePath('/logistique')
 }

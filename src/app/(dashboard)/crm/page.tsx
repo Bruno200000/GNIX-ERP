@@ -52,9 +52,6 @@ export default async function CRMPage() {
               <p className="mt-1 text-sm text-slate-500">
                 Vous n'avez pas encore de clients ou vous n'êtes pas connecté à l'organisation.
               </p>
-              <Button variant="outline" className="mt-4">
-                Ajouter un client de test
-              </Button>
             </div>
           ) : (
             <div className="rounded-md border border-slate-200 dark:border-slate-800">

@@ -98,17 +98,18 @@ export default async function SettingsPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="api_key">Cle API Google Gemini</Label>
+                  <Label htmlFor="ai_api_key">Clé API (Gemini ou OpenAI)</Label>
                   <div className="relative">
                     <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                     <Input 
                       type="password" 
-                      placeholder="Configuree via GEMINI_API_KEY"
+                      name="ai_api_key"
+                      defaultValue={settings?.ai_api_key || ""}
+                      placeholder="Laissez vide pour utiliser l'API gratuite integrée"
                       className="pl-10 rounded-xl"
-                      disabled
                     />
                   </div>
-                  <p className="text-[10px] text-slate-500">Les cles serveur restent dans l'environnement et ne sont pas exposees au navigateur.</p>
+                  <p className="text-[10px] text-slate-500">Votre clé est stockée de manière sécurisée dans la base de données et n'est utilisée que par le backend.</p>
                 </div>
 
                 <div className="flex items-center justify-between py-4 border-t border-slate-100">

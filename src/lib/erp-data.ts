@@ -103,6 +103,15 @@ export type ProductRecord = BaseRecord & {
   image_url?: string
 }
 
+export type PurchaseOrderRecord = BaseRecord & {
+  order_number: string
+  supplier: string
+  status: string
+  total_amount: number
+  expected_date: string
+  items: { product_id: string; quantity: number; price: number }[]
+}
+
 export type WarehouseRecord = BaseRecord & {
   name: string
   location: string
@@ -120,7 +129,7 @@ export type StockEntryRecord = BaseRecord & {
   product_id: string
   warehouse_id: string
   quantity: number
-  type: "in" | "out" | "transfer"
+  type: string
   notes: string
 }
 
@@ -281,8 +290,9 @@ export type AppSettingsRecord = BaseRecord & {
   dark_mode: boolean
   auto_translate: boolean
   ai_provider: string
+  ai_api_key?: string
   ai_email_analysis: boolean
-  notifications: Record<string, JsonValue>
+  notifications: Record<string, boolean>
 }
 
 type ErpStore = {
@@ -293,6 +303,7 @@ type ErpStore = {
   invoices: InvoiceRecord[]
   payments: PaymentRecord[]
   products: ProductRecord[]
+  purchase_orders: PurchaseOrderRecord[]
   warehouses: WarehouseRecord[]
   inventory: InventoryRecord[]
   stock_entries: StockEntryRecord[]
@@ -448,6 +459,17 @@ function mergeIntegrationCatalog(
       color: "bg-rose-500",
       created_at: nowIso(),
     },
+    {
+      id: "catalog-email",
+      organization_id: ctx.orgId,
+      name: "Email (SMTP/IMAP)",
+      description: "Connectez votre boite mail pour centraliser et analyser vos courriels avec l'IA.",
+      category: "Communication",
+      status: "available",
+      icon: "Mail",
+      color: "bg-sky-500",
+      created_at: nowIso(),
+    },
   ]
 
   const mergedDefaults = defaults.map((defaultApp) => {
@@ -491,6 +513,7 @@ function emptyStore(): ErpStore {
     invoices: [],
     payments: [],
     products: [],
+    purchase_orders: [],
     warehouses: [],
     inventory: [],
     stock_entries: [],
@@ -1224,6 +1247,7 @@ function mergeStore(target: ErpStore, source: ErpStore) {
   target.invoices.push(...source.invoices)
   target.payments.push(...source.payments)
   target.products.push(...source.products)
+  target.purchase_orders.push(...source.purchase_orders)
   target.warehouses.push(...source.warehouses)
   target.inventory.push(...source.inventory)
   target.stock_entries.push(...source.stock_entries)
@@ -1755,10 +1779,72 @@ export async function createProductData(formData: FormData) {
   await logAudit(ctx, "Creation produit", record.sku)
 }
 
+export async function getPurchaseOrdersData() {
+  const ctx = await getDbContext()
+  return (await selectSupabaseRows<PurchaseOrderRecord>(ctx, "purchase_orders"))
+    ?? (await localRows(ctx, "purchase_orders"))
+}
+
+export async function createPurchaseOrderData(formData: FormData) {
+  const ctx = await getDbContext()
+  const record: PurchaseOrderRecord = {
+    id: id("po"),
+    organization_id: ctx.orgId,
+    order_number: quoteNumber("PO"),
+    supplier: formText(formData, "supplier", "Nouveau Fournisseur"),
+    status: "pending",
+    total_amount: formNumber(formData, "total_amount"),
+    expected_date: formText(formData, "expected_date", new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0]),
+    items: [], // Simplification for now
+    created_at: nowIso(),
+  }
+
+  if (!(await insertSupabaseRow(ctx, "purchase_orders", record))) {
+    await mutateStore(ctx, (store) => store.purchase_orders.unshift(record))
+  }
+  await logAudit(ctx, "Creation bon de commande", record.order_number)
+}
+
 export async function getWarehousesData() {
   const ctx = await getDbContext()
   return (await selectSupabaseRows<WarehouseRecord>(ctx, "warehouses", "name", true))
     ?? (await localRows(ctx, "warehouses"))
+}
+
+export async function createWarehouseData(formData: FormData) {
+  const ctx = await getDbContext()
+  const record: WarehouseRecord = {
+    id: id("warehouse"),
+    organization_id: ctx.orgId,
+    name: formText(formData, "name", "Nouvel Entrepot"),
+    location: formText(formData, "location", "Non defini"),
+    capacity: formNumber(formData, "capacity", 1000),
+    created_at: nowIso(),
+  }
+
+  if (!(await insertSupabaseRow(ctx, "warehouses", record))) {
+    await mutateStore(ctx, (store) => store.warehouses.unshift(record))
+  }
+  await logAudit(ctx, "Creation entrepot", record.name)
+}
+
+export async function updateInventoryLocationData(formData: FormData) {
+  const ctx = await getDbContext()
+  const inventoryId = formText(formData, "inventory_id")
+  const newLocation = formText(formData, "location")
+  
+  if (!inventoryId || !newLocation) return
+
+  const rows = (await localRows(ctx, "inventory"))
+  const index = rows.findIndex(r => r.id === inventoryId)
+  if (index !== -1) {
+    if (!(await updateSupabaseRow(ctx, "inventory", inventoryId, { location: newLocation }))) {
+      await mutateStore(ctx, (store) => {
+        const i = store.inventory.findIndex(r => r.id === inventoryId)
+        if (i !== -1) store.inventory[i].location = newLocation
+      })
+    }
+  }
 }
 
 export async function createStockEntryData(formData: FormData) {
@@ -1801,13 +1887,88 @@ export async function createStockEntryData(formData: FormData) {
           product_id: productId,
           warehouse_id: warehouseId,
           quantity,
-          location: record.notes,
+          location: record.notes || "Entree stock",
           created_at: nowIso(),
         })
       }
     })
   }
   await logAudit(ctx, "Entree de stock", productId)
+}
+
+export async function transferStockData(formData: FormData) {
+  const ctx = await getDbContext()
+  const productId = formText(formData, "product_id")
+  const fromWarehouseId = formText(formData, "from_warehouse_id")
+  const toWarehouseId = formText(formData, "to_warehouse_id")
+  const quantity = formNumber(formData, "quantity")
+
+  if (!productId || !fromWarehouseId || !toWarehouseId || quantity <= 0) {
+    throw new Error("Donnees de transfert invalides")
+  }
+  
+  if (fromWarehouseId === toWarehouseId) {
+    throw new Error("L'entrepot source et destination doivent etre differents")
+  }
+
+  const rows = await localRows(ctx, "inventory")
+  
+  // Deduct from source
+  const sourceIndex = rows.findIndex(r => r.product_id === productId && r.warehouse_id === fromWarehouseId)
+  if (sourceIndex === -1 || rows[sourceIndex].quantity < quantity) {
+    throw new Error("Stock insuffisant dans l'entrepot source")
+  }
+
+  // Update source
+  const newSourceQty = rows[sourceIndex].quantity - quantity
+  if (!(await updateSupabaseRow(ctx, "inventory", rows[sourceIndex].id, { quantity: newSourceQty }))) {
+    await mutateStore(ctx, (store) => {
+      const idx = store.inventory.findIndex(r => r.id === rows[sourceIndex].id)
+      if (idx !== -1) store.inventory[idx].quantity = newSourceQty
+    })
+  }
+
+  // Add to destination
+  const destIndex = rows.findIndex(r => r.product_id === productId && r.warehouse_id === toWarehouseId)
+  if (destIndex !== -1) {
+    const newDestQty = rows[destIndex].quantity + quantity
+    if (!(await updateSupabaseRow(ctx, "inventory", rows[destIndex].id, { quantity: newDestQty }))) {
+      await mutateStore(ctx, (store) => {
+        const idx = store.inventory.findIndex(r => r.id === rows[destIndex].id)
+        if (idx !== -1) store.inventory[idx].quantity = newDestQty
+      })
+    }
+  } else {
+    // Create new inventory row
+    const record: InventoryRecord = {
+      id: id("inventory"),
+      organization_id: ctx.orgId,
+      product_id: productId,
+      warehouse_id: toWarehouseId,
+      quantity,
+      location: "Non defini",
+      created_at: nowIso(),
+    }
+    if (!(await insertSupabaseRow(ctx, "inventory", record))) {
+      await mutateStore(ctx, (store) => store.inventory.push(record))
+    }
+  }
+
+  const entryRecord: StockEntryRecord = {
+    id: id("stock_entry"),
+    organization_id: ctx.orgId,
+    product_id: productId,
+    warehouse_id: toWarehouseId,
+    quantity,
+    type: "transfer",
+    notes: `Transfert depuis l'entrepot source`,
+    created_at: nowIso(),
+  }
+  if (!(await insertSupabaseRow(ctx, "stock_entries", entryRecord))) {
+    await mutateStore(ctx, (store) => store.stock_entries.unshift(entryRecord))
+  }
+  
+  await logAudit(ctx, "Transfert de stock", productId)
 }
 
 export async function getDeliveryNotesData() {
@@ -2047,6 +2208,20 @@ export async function getChatData() {
   return { channels, messages, users }
 }
 
+export async function createChannelData(formData: FormData) {
+  const ctx = await getDbContext()
+  const record: ChatChannelRecord = {
+    id: id("channel"),
+    organization_id: ctx.orgId,
+    name: formText(formData, "name", "nouveau-canal"),
+    created_at: nowIso(),
+  }
+
+  if (!(await insertSupabaseRow(ctx, "chat_channels", record))) {
+    await mutateStore(ctx, (store) => store.chat_channels.push(record))
+  }
+}
+
 export async function sendChatMessageData(formData: FormData) {
   const ctx = await getDbContext()
   const channels = (await localRows(ctx, "chat_channels")) as ChatChannelRecord[]
@@ -2093,6 +2268,21 @@ export async function createTicketData(formData: FormData) {
     await mutateStore(ctx, (store) => store.tickets.unshift(record))
   }
   await logAudit(ctx, "Creation ticket", record.ticket_number, record.priority === "high" ? "high" : "low")
+}
+
+export async function updateTicketStatusData(ticketId: string, newStatus: string) {
+  const ctx = await getDbContext()
+  
+  const rows = await localRows(ctx, "tickets")
+  const index = rows.findIndex(r => r.id === ticketId)
+  if (index !== -1) {
+    if (!(await updateSupabaseRow(ctx, "tickets", ticketId, { status: newStatus }))) {
+      await mutateStore(ctx, (store) => {
+        const i = store.tickets.findIndex(r => r.id === ticketId)
+        if (i !== -1) store.tickets[i].status = newStatus
+      })
+    }
+  }
 }
 
 export async function getAssetsData() {
@@ -2242,6 +2432,7 @@ export async function updateSettingsData(formData: FormData) {
     dark_mode: formData.get("dark_mode") === "on",
     auto_translate: formData.get("auto_translate") === "on",
     ai_provider: formText(formData, "ai_provider", settings.ai_provider),
+    ai_api_key: formText(formData, "ai_api_key", settings.ai_api_key),
     ai_email_analysis: formData.get("ai_email_analysis") === "on",
     notifications: {
       crm_email: formData.get("crm_email") === "on",

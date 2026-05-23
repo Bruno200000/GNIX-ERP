@@ -1,5 +1,7 @@
-import { getChatData, sendChatMessageData } from "@/lib/erp-data"
+import { createChannelData, getChatData, sendChatMessageData } from "@/lib/erp-data"
 import { revalidatePath } from "next/cache"
+import Link from "next/link"
+import { CreateChannelDialog } from "@/components/communication/CreateChannelDialog"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -11,9 +13,24 @@ async function sendMessage(formData: FormData) {
   revalidatePath("/chat")
 }
 
-export default async function ChatInterne() {
+async function createChannel(formData: FormData) {
+  "use server"
+  await createChannelData(formData)
+  revalidatePath("/chat")
+}
+
+export default async function ChatInterne({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>
+}) {
+  const params = await searchParams
   const { channels, messages, users } = await getChatData()
-  const activeChannel = channels[0]
+  
+  const activeChannelId = typeof params.channel === 'string' ? params.channel : channels[0]?.id
+  const activeChannel = channels.find(c => c.id === activeChannelId) || channels[0]
+  
+  const channelMessages = messages.filter(m => m.channel_id === activeChannel?.id)
 
   return (
     <div className="h-[calc(100vh-160px)] flex gap-4 overflow-hidden">
@@ -29,14 +46,19 @@ export default async function ChatInterne() {
             <div>
               <div className="flex items-center justify-between mb-2">
                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Channels</span>
-                <Plus className="h-3 w-3 text-slate-400 cursor-pointer hover:text-indigo-600" />
+                <CreateChannelDialog 
+                  action={createChannel}
+                  trigger={<Plus className="h-3 w-3 text-slate-400 cursor-pointer hover:text-indigo-600" />}
+                />
               </div>
               <div className="space-y-1">
                 {channels.map((channel) => (
-                  <div key={channel.id} className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 cursor-pointer transition-colors">
-                    <Hash className="h-3.5 w-3.5 text-slate-400" />
-                    {channel.name}
-                  </div>
+                  <Link href={`/chat?channel=${channel.id}`} key={channel.id}>
+                    <div className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-sm font-medium cursor-pointer transition-colors ${activeChannel?.id === channel.id ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50'}`}>
+                      <Hash className={`h-3.5 w-3.5 ${activeChannel?.id === channel.id ? 'text-indigo-500' : 'text-slate-400'}`} />
+                      {channel.name}
+                    </div>
+                  </Link>
                 ))}
               </div>
             </div>
@@ -77,7 +99,7 @@ export default async function ChatInterne() {
         </div>
 
         <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-50/30">
-          {messages.map((message) => (
+          {channelMessages.map((message) => (
             <div key={message.id} className={`flex gap-3 ${message.is_me ? "justify-end" : ""}`}>
               {!message.is_me && (
                 <div className="h-8 w-8 rounded-full bg-slate-200 shrink-0 flex items-center justify-center">

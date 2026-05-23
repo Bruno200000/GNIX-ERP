@@ -1,0 +1,58 @@
+'use client'
+
+import { useState } from "react"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger, DialogFooter } from "@/components/ui/dialog"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Hash, Plus } from "lucide-react"
+
+export function CreateChannelDialog({ 
+  trigger,
+  action
+}: { 
+  trigger: React.ReactElement
+  action: (formData: FormData) => Promise<void>
+}) {
+  const [open, setOpen] = useState(false)
+  const [loading, setLoading] = useState(false)
+
+  async function handleSubmit(formData: FormData) {
+    setLoading(true)
+    try {
+      await action(formData)
+      setOpen(false)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger render={trigger} />
+      <DialogContent className="sm:max-w-md rounded-3xl border-slate-200 shadow-2xl">
+        <DialogHeader>
+          <div className="h-12 w-12 bg-indigo-100 rounded-xl flex items-center justify-center mb-2">
+            <Hash className="h-6 w-6 text-indigo-600" />
+          </div>
+          <DialogTitle className="text-xl font-black text-slate-900">Nouveau Canal</DialogTitle>
+          <DialogDescription>Creez un nouvel espace de discussion pour votre equipe.</DialogDescription>
+        </DialogHeader>
+
+        <form action={handleSubmit} className="space-y-4 py-4">
+          <div className="space-y-2">
+            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Nom du canal</label>
+            <Input name="name" required placeholder="nom-du-canal" className="rounded-xl" />
+          </div>
+
+          <DialogFooter className="pt-4">
+            <Button type="button" variant="outline" className="rounded-xl" onClick={() => setOpen(false)}>Annuler</Button>
+            <Button type="submit" disabled={loading} className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl px-8 gap-2">
+              {loading ? "Creation..." : "Creer"}
+              <Plus className="h-4 w-4" />
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}

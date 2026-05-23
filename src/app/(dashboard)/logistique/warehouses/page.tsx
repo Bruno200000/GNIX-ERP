@@ -5,6 +5,9 @@ import { Button } from "@/components/ui/button"
 import { Plus, MapPin, Grid3X3, ArrowRightLeft, Search } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { AddStockDialog } from "@/components/logistique/AddStockDialog"
+import { AddWarehouseDialog } from "@/components/logistique/AddWarehouseDialog"
+import { TransferStockDialog } from "@/components/logistique/TransferStockDialog"
+import { EditLocationDialog } from "@/components/logistique/EditLocationDialog"
 
 export default async function LogistiqueWarehouses() {
   const [warehouses, products] = await Promise.all([getWarehouses(), getProducts()])
@@ -35,9 +38,7 @@ export default async function LogistiqueWarehouses() {
           <p className="text-sm text-slate-500">Gerez vos stocks avec precision : allees, etageres et casiers.</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" className="gap-2">
-            <ArrowRightLeft className="h-4 w-4" /> Transfert de Stock
-          </Button>
+          <TransferStockDialog />
           <AddStockDialog />
         </div>
       </div>
@@ -62,12 +63,14 @@ export default async function LogistiqueWarehouses() {
           </Card>
         ))}
 
-        <Card className="bg-slate-50 border-dashed border-2 flex items-center justify-center cursor-pointer hover:bg-slate-100 transition-colors h-[100px]">
-           <div className="text-center">
+        <AddWarehouseDialog trigger={
+          <Card className="bg-slate-50 border-dashed border-2 flex items-center justify-center cursor-pointer hover:bg-slate-100 transition-colors h-[100px]">
+            <div className="text-center">
               <Plus className="h-5 w-5 text-slate-400 mx-auto" />
               <span className="text-xs font-bold text-slate-500 uppercase">Nouvel Entrepot</span>
-           </div>
-        </Card>
+            </div>
+          </Card>
+        } />
       </div>
 
       <Card>
@@ -111,7 +114,11 @@ export default async function LogistiqueWarehouses() {
                     </td>
                     <td className="px-6 py-4 font-black">{item.qty}</td>
                     <td className="px-6 py-4 text-right">
-                      <Button variant="ghost" size="sm">Editer Empl.</Button>
+                      <EditLocationDialog 
+                        inventoryId={item.id} 
+                        currentLocation={item.location} 
+                        productName={item.name} 
+                      />
                     </td>
                   </tr>
                 ))}

@@ -1,5 +1,7 @@
-import { createTicketData, getAssetsData, getTicketsData } from "@/lib/erp-data"
+import { createTicketData, getAssetsData, getTicketsData, updateTicketStatusData } from "@/lib/erp-data"
 import { revalidatePath } from "next/cache"
+import Link from "next/link"
+import { TicketDetailsDialog } from "@/components/itsm/TicketDetailsDialog"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -9,6 +11,12 @@ import { Ticket, Cpu, Clock, CheckCircle2, AlertCircle, Plus, Filter, HardDrive 
 async function createTicket(formData: FormData) {
   "use server"
   await createTicketData(formData)
+  revalidatePath("/itsm")
+}
+
+async function updateTicketStatus(ticketId: string, newStatus: string) {
+  "use server"
+  await updateTicketStatusData(ticketId, newStatus)
   revalidatePath("/itsm")
 }
 
@@ -41,7 +49,7 @@ export default async function ITSMSupport() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" className="gap-2">
+          <Button render={<Link href="/itsm/inventory" />} variant="outline" className="gap-2">
             <HardDrive className="h-4 w-4" /> Inventaire Materiel
           </Button>
         </div>
@@ -145,7 +153,14 @@ export default async function ITSMSupport() {
                     {ticket.priority}
                   </Badge>
                   <span className="text-xs text-slate-400 font-medium">{ticket.created_label}</span>
-                  <Button variant="secondary" size="sm" className="h-8">Details</Button>
+                  <TicketDetailsDialog 
+                    ticketId={ticket.id}
+                    ticketNumber={ticket.ticket_number}
+                    subject={ticket.subject}
+                    currentStatus={ticket.status}
+                    action={updateTicketStatus}
+                    trigger={<Button variant="secondary" size="sm" className="h-8">Details</Button>}
+                  />
                 </div>
               </div>
             ))}
