@@ -14,7 +14,15 @@ function getDataFilePath() {
   return path.join(baseDir, ".data", "erp-db.json")
 }
 
+function getIntegrationOverridesPath() {
+  const baseDir = process.env.NODE_ENV === "production" ? "/tmp" : process.cwd()
+  return path.join(baseDir, ".data", "erp-integration-overrides.json")
+}
+
 const dataFile = getDataFilePath()
+const integrationOverridesFile = getIntegrationOverridesPath()
+
+type IntegrationStatusMap = Record<string, "connected" | "available">
 
 export type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue }
 
@@ -331,6 +339,138 @@ const addDaysIso = (days: number) => {
 }
 
 const id = (prefix: string) => `${prefix}_${randomUUID()}`
+
+async function readIntegrationOverrides(): Promise<IntegrationStatusMap> {
+  try {
+    const raw = await readFile(integrationOverridesFile, "utf8")
+    const parsed = JSON.parse(raw)
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      return Object.fromEntries(
+        Object.entries(parsed).filter(([, value]) => value === "connected" || value === "available"),
+      ) as IntegrationStatusMap
+    }
+  } catch {
+    // No persisted override file yet.
+  }
+
+  return {}
+}
+
+async function writeIntegrationOverrides(overrides: IntegrationStatusMap) {
+  try {
+    await mkdir(path.dirname(integrationOverridesFile), { recursive: true })
+    await writeFile(integrationOverridesFile, JSON.stringify(overrides, null, 2), "utf8")
+  } catch {
+    // Ignore write failures in restricted environments.
+  }
+}
+
+function normalizeIntegrationName(name: string) {
+  return name.trim().toLowerCase()
+}
+
+function applyIntegrationOverrides(apps: IntegrationRecord[], overrides: IntegrationStatusMap) {
+  return apps.map((app) => ({
+    ...app,
+    status: overrides[app.id] ?? app.status,
+  }))
+}
+
+function mergeIntegrationCatalog(
+  dbRows: IntegrationRecord[] | null,
+  overrides: IntegrationStatusMap,
+  ctx: DbContext,
+): IntegrationRecord[] {
+  const defaults: IntegrationRecord[] = [
+    {
+      id: "catalog-openai",
+      organization_id: ctx.orgId,
+      name: "OpenAI (ChatGPT)",
+      description: "Automatisez vos reponses clients et la classification des donnees par IA.",
+      category: "Intelligence Artificielle",
+      status: "connected",
+      icon: "Cpu",
+      color: "bg-amber-500",
+      created_at: nowIso(),
+    },
+    {
+      id: "catalog-whatsapp",
+      organization_id: ctx.orgId,
+      name: "WhatsApp Business",
+      description: "Centralisez vos echanges clients et analysez les besoins via IA.",
+      category: "Communication",
+      status: "connected",
+      icon: "MessageCircle",
+      color: "bg-green-500",
+      created_at: nowIso(),
+    },
+    {
+      id: "catalog-shopify",
+      organization_id: ctx.orgId,
+      name: "Shopify",
+      description: "Synchronisez vos stocks et vos commandes e-commerce en temps reel.",
+      category: "E-commerce",
+      status: "available",
+      icon: "ShoppingCart",
+      color: "bg-indigo-600",
+      created_at: nowIso(),
+    },
+    {
+      id: "catalog-webhooks",
+      organization_id: ctx.orgId,
+      name: "Site Web (Webhooks)",
+      description: "Connectez votre site web pour recevoir des leads directs.",
+      category: "Web",
+      status: "available",
+      icon: "Globe",
+      color: "bg-blue-500",
+      created_at: nowIso(),
+    },
+    {
+      id: "catalog-slack",
+      organization_id: ctx.orgId,
+      name: "Slack",
+      description: "Centralisez les notifications internes et les alertes commerciales en temps reel.",
+      category: "Collaboration",
+      status: "available",
+      icon: "MessageSquareText",
+      color: "bg-purple-500",
+      created_at: nowIso(),
+    },
+    {
+      id: "catalog-google-calendar",
+      organization_id: ctx.orgId,
+      name: "Google Calendar",
+      description: "Synchronisez vos rendez-vous et automatisez les planifications client.",
+      category: "Calendrier",
+      status: "available",
+      icon: "CalendarDays",
+      color: "bg-rose-500",
+      created_at: nowIso(),
+    },
+  ]
+
+  const mergedDefaults = defaults.map((defaultApp) => {
+    const match = dbRows?.find((row) => normalizeIntegrationName(row.name) === normalizeIntegrationName(defaultApp.name))
+
+    if (!match) {
+      return defaultApp
+    }
+
+    return {
+      ...defaultApp,
+      ...match,
+      icon: defaultApp.icon,
+      color: defaultApp.color,
+    }
+  })
+
+  const extraApps = (dbRows ?? []).filter((row) =>
+    !defaults.some((defaultApp) => normalizeIntegrationName(row.name) === normalizeIntegrationName(defaultApp.name)),
+  )
+
+  return applyIntegrationOverrides([...mergedDefaults, ...extraApps], overrides)
+}
 
 export function formText(formData: FormData, key: string, fallback = "") {
   const value = formData.get(key)
@@ -1963,8 +2103,9 @@ export async function getAssetsData() {
 
 export async function getIntegrationsData() {
   const ctx = await getDbContext()
-  return (await selectSupabaseRows<IntegrationRecord>(ctx, "integrations", "created_at", true))
-    ?? (await localRows(ctx, "integrations"))
+  const overrides = await readIntegrationOverrides()
+  const dbRows = await selectSupabaseRows<IntegrationRecord>(ctx, "integrations", "created_at", true)
+  return mergeIntegrationCatalog(dbRows, overrides, ctx)
 }
 
 export async function toggleIntegrationData(formData: FormData) {
@@ -1975,12 +2116,18 @@ export async function toggleIntegrationData(formData: FormData) {
   if (!integration) return
 
   const status = integration.status === "connected" ? "available" : "connected"
-  if (!(await updateSupabaseRow(ctx, "integrations", integrationId, { status }))) {
-    await mutateStore(ctx, (store) => {
-      const row = store.integrations.find((item) => item.id === integrationId && item.organization_id === ctx.orgId)
-      if (row) row.status = status
-    })
+  const updated = await updateSupabaseRow(ctx, "integrations", integrationId, { status })
+
+  if (!updated) {
+    const overrides = await readIntegrationOverrides()
+    overrides[integrationId] = status
+    await writeIntegrationOverrides(overrides)
+  } else {
+    const overrides = await readIntegrationOverrides()
+    delete overrides[integrationId]
+    await writeIntegrationOverrides(overrides)
   }
+
   await logAudit(ctx, status === "connected" ? "Integration connectee" : "Integration desactivee", integration.name)
 }
 

@@ -3,7 +3,20 @@ import { revalidatePath } from "next/cache"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Globe, ShoppingCart, MessageCircle, Cpu, Settings2, Plus, ArrowRight } from "lucide-react"
+import {
+  Globe,
+  ShoppingCart,
+  MessageCircle,
+  Cpu,
+  Settings2,
+  Plus,
+  ArrowRight,
+  MessageSquareText,
+  CalendarDays,
+  Mail,
+  ShieldCheck,
+  Zap,
+} from "lucide-react"
 
 async function toggleIntegration(formData: FormData) {
   "use server"
@@ -16,6 +29,11 @@ const icons = {
   ShoppingCart,
   MessageCircle,
   Globe,
+  MessageSquareText,
+  CalendarDays,
+  Mail,
+  ShieldCheck,
+  Zap,
 }
 
 export default async function IntegrationsPage() {
