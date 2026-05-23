@@ -19,21 +19,43 @@ export function Header() {
   // Fetch user profile on mount
   useEffect(() => {
     const supabase = createClient()
+
     async function getUser() {
       try {
         const { data: { user } } = await supabase.auth.getUser()
-        if (user) {
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', user.id)
-            .single()
-          setUserProfile({ ...user, ...(profile || {}) })
+
+        if (!user) {
+          return
         }
-      } catch (e) {
+
+        const fallbackProfile = {
+          first_name: user.user_metadata?.first_name ?? user.user_metadata?.name?.split(' ')[0] ?? '',
+          last_name: user.user_metadata?.last_name ?? user.user_metadata?.name?.split(' ').slice(1).join(' ') ?? '',
+          email: user.email ?? '',
+          avatar_url: user.user_metadata?.avatar_url ?? null,
+          role: user.user_metadata?.role ?? user.user_metadata?.company_name ?? 'Utilisateur',
+        }
+
+        const { data: profile, error } = await supabase
+          .from('profiles')
+          .select('first_name,last_name,email,avatar_url,role,organization_id')
+          .eq('id', user.id)
+          .maybeSingle()
+
+        setUserProfile({
+          ...user,
+          ...(profile ?? {}),
+          ...fallbackProfile,
+        })
+
+        if (error) {
+          return
+        }
+      } catch {
         // fail silently
       }
     }
+
     getUser()
   }, [])
 
