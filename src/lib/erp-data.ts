@@ -1140,32 +1140,69 @@ function metadataText(user: User | null, key: string, fallback = "") {
 }
 
 async function getDbContext(): Promise<DbContext> {
-  const supabase = await createClient()
-  const cookieStore = await cookies()
-  const localSessionEmail = cookieStore.get("gnix_demo_user")?.value
-  const decodedLocalEmail = localSessionEmail ? decodeURIComponent(localSessionEmail) : ""
-  let authTimedOut = false
-  const user = await Promise.race([
-    supabase.auth.getUser().then((result) => result.data.user),
-    new Promise<null>((resolve) =>
-      setTimeout(() => {
-        authTimedOut = true
-        resolve(null)
-      }, 1200)
-    ),
-  ])
+  let localSessionEmail = ""
 
-  const userId = user?.id ?? (decodedLocalEmail ? `demo-${decodedLocalEmail.replace(/[^a-z0-9]/gi, "-")}` : "demo-user")
-  const email = user?.email ?? decodedLocalEmail ?? "bruno@gnix.local"
+  try {
+    const cookieStore = await cookies()
+    localSessionEmail = cookieStore.get("gnix_demo_user")?.value ?? ""
+  } catch {
+    localSessionEmail = ""
+  }
+
+  const decodedLocalEmail = localSessionEmail ? decodeURIComponent(localSessionEmail) : ""
+  const fallbackUserId = decodedLocalEmail ? `demo-${decodedLocalEmail.replace(/[^a-z0-9]/gi, "-")}` : "demo-user"
+  const fallbackEmail = decodedLocalEmail ?? "bruno@gnix.local"
+  const fallbackOrgId = decodedLocalEmail ? `local-${decodedLocalEmail.replace(/[^a-z0-9]/gi, "-")}` : "local-demo-org"
+
+  let supabase: SupabaseClient | null = null
+
+  try {
+    supabase = await createClient()
+  } catch {
+    supabase = null
+  }
+
+  if (!supabase) {
+    return {
+      supabase: null as unknown as SupabaseClient,
+      user: null,
+      userId: fallbackUserId,
+      orgId: fallbackOrgId,
+      orgName: "GNIX IA SARL",
+      email: fallbackEmail,
+      isSupabaseWorkspaceReady: false,
+    }
+  }
+
+  let authTimedOut = false
+  let user: User | null = null
+
+  try {
+    user = await Promise.race([
+      supabase.auth.getUser().then((result) => result.data.user),
+      new Promise<null>((resolve) =>
+        setTimeout(() => {
+          authTimedOut = true
+          resolve(null)
+        }, 1200)
+      ),
+    ])
+  } catch {
+    authTimedOut = true
+    user = null
+  }
+
+  const userId = user?.id ?? fallbackUserId
+  const email = user?.email ?? fallbackEmail
   const companyName = metadataText(user, "company_name", "GNIX IA SARL")
-  const fallbackOrgId = user ? `local-${user.id}` : decodedLocalEmail ? `local-${decodedLocalEmail.replace(/[^a-z0-9]/gi, "-")}` : "local-demo-org"
+  const resolvedOrgId = user ? `local-${user.id}` : fallbackOrgId
 
   if (!user || authTimedOut) {
     return {
       supabase,
       user,
       userId,
-      orgId: fallbackOrgId,
+      orgId: resolvedOrgId,
       orgName: companyName,
       email,
       isSupabaseWorkspaceReady: false,
@@ -1235,7 +1272,7 @@ async function getDbContext(): Promise<DbContext> {
       supabase,
       user,
       userId,
-      orgId: fallbackOrgId,
+      orgId: resolvedOrgId,
       orgName: companyName,
       email,
       isSupabaseWorkspaceReady: false,
@@ -1963,6 +2000,17 @@ export async function getOrganizationData() {
       .order("created_at", { ascending: true })
 
     if (org) return { ...(org as OrganizationRecord), members: (members ?? []) as ProfileRecord[] }
+  }
+
+  if (!shouldUseLocalSeedData()) {
+    return {
+      id: ctx.orgId,
+      name: ctx.orgName,
+      domain: ctx.email.includes("@") ? ctx.email.split("@")[1] : null,
+      settings: {},
+      created_at: nowIso(),
+      members: [],
+    }
   }
 
   const store = await readWorkspaceStore(ctx)

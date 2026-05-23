@@ -35,6 +35,12 @@ export async function login(formData: FormData) {
     password: formData.get('password') as string,
   }
 
+  if (!supabase) {
+    await setLocalSession(data.email)
+    revalidatePath('/', 'layout')
+    redirect('/')
+  }
+
   const { error } = await withAuthTimeout(supabase.auth.signInWithPassword(data))
 
   if (error) {
@@ -63,6 +69,12 @@ export async function signup(formData: FormData) {
     }
   }
 
+  if (!supabase) {
+    await setLocalSession(data.email)
+    revalidatePath('/', 'layout')
+    redirect('/')
+  }
+
   const { error } = await withAuthTimeout(supabase.auth.signUp(data))
 
   if (error) {
@@ -78,7 +90,11 @@ export async function signup(formData: FormData) {
 
 export async function logout() {
   const supabase = await createClient()
-  await supabase.auth.signOut()
+
+  if (supabase) {
+    await supabase.auth.signOut()
+  }
+
   await clearLocalSession()
   redirect('/login')
 }

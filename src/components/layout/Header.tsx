@@ -20,9 +20,15 @@ export function Header() {
   useEffect(() => {
     const supabase = createClient()
 
+    if (!supabase) {
+      return
+    }
+
+    const client = supabase
+
     async function getUser() {
       try {
-        const { data: { user } } = await supabase.auth.getUser()
+        const { data: { user } } = await client.auth.getUser()
 
         if (!user) {
           return
@@ -36,7 +42,7 @@ export function Header() {
           role: user.user_metadata?.role ?? user.user_metadata?.company_name ?? 'Utilisateur',
         }
 
-        const { data: profile, error } = await supabase
+        const { data: profile, error } = await client
           .from('profiles')
           .select('first_name,last_name,email,avatar_url,role,organization_id')
           .eq('id', user.id)
