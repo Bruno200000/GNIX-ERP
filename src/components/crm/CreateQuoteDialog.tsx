@@ -10,7 +10,7 @@ import { getClients, addQuote, Client } from "@/app/(dashboard)/crm/actions"
 export function CreateQuoteDialog() {
   const [open, setOpen] = useState(false)
   const [clients, setClients] = useState<Client[]>([])
-  const [items, setItems] = useState([{ id: Date.now(), name: '', qty: 1, price: 0 }])
+  const [items, setItems] = useState([{ id: String(Date.now()), name: '', qty: 1, price: 0 }])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -20,10 +20,10 @@ export function CreateQuoteDialog() {
     }
   }, [open])
 
-  const addItem = () => setItems([...items, { id: Date.now(), name: '', qty: 1, price: 0 }])
-  const removeItem = (id: number) => setItems(items.filter(i => i.id !== id))
+  const addItem = () => setItems([...items, { id: String(Date.now()), name: '', qty: 1, price: 0 }])
+  const removeItem = (id: string) => setItems(items.filter(i => i.id !== id))
   
-  const updateItem = (id: number, field: string, value: any) => {
+  const updateItem = (id: string, field: string, value: string) => {
     setItems(items.map(item => item.id === id ? { ...item, [field]: value } : item))
   }
 
@@ -33,9 +33,14 @@ export function CreateQuoteDialog() {
     setLoading(true)
     setError(null)
     try {
-      await addQuote(formData, items)
+      await addQuote(formData, items.map((item) => ({
+        id: item.id,
+        name: item.name,
+        qty: Number(item.qty),
+        price: Number(item.price),
+      })))
       setOpen(false)
-      setItems([{ id: Date.now(), name: '', qty: 1, price: 0 }])
+      setItems([{ id: String(Date.now()), name: '', qty: 1, price: 0 }])
     } catch (e: any) {
       setError(e.message)
     } finally {

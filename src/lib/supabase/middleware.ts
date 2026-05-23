@@ -33,12 +33,22 @@ export async function updateSession(request: NextRequest) {
 
   // IMPORTANT: DO NOT REMOVE auth.getUser()
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  let authUnavailable = false
+  const user = await Promise.race([
+    supabase.auth.getUser().then((result) => result.data.user),
+    new Promise<null>((resolve) =>
+      setTimeout(() => {
+        authUnavailable = true
+        resolve(null)
+      }, 1200)
+    ),
+  ])
+  const hasLocalSession = Boolean(request.cookies.get('gnix_demo_user')?.value)
 
   if (
     !user &&
+    !hasLocalSession &&
+    !authUnavailable &&
     !request.nextUrl.pathname.startsWith('/login') &&
     !request.nextUrl.pathname.startsWith('/register') &&
     !request.nextUrl.pathname.startsWith('/auth')

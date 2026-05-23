@@ -1,19 +1,22 @@
-import { Card, CardContent } from "@/components/ui/card"
+import { getChatData, sendChatMessageData } from "@/lib/erp-data"
+import { revalidatePath } from "next/cache"
+import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Send, Hash, User, Search, Plus, Sparkles, Smile, Paperclip } from "lucide-react"
 
-export default function ChatInterne() {
-  const channels = ['Général', 'Annonces', 'Projet Alpha', 'Support IT']
-  const users = [
-    { name: 'Admin GNIX', status: 'online' },
-    { name: 'RH Manager', status: 'offline' },
-    { name: 'Sales Lead', status: 'online' },
-  ]
+async function sendMessage(formData: FormData) {
+  "use server"
+  await sendChatMessageData(formData)
+  revalidatePath("/chat")
+}
+
+export default async function ChatInterne() {
+  const { channels, messages, users } = await getChatData()
+  const activeChannel = channels[0]
 
   return (
     <div className="h-[calc(100vh-160px)] flex gap-4 overflow-hidden">
-      {/* Sidebar Chat */}
       <div className="w-64 flex flex-col gap-4">
         <Card className="flex-1 border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col">
           <div className="p-4 border-b border-slate-100 dark:border-slate-800">
@@ -29,10 +32,10 @@ export default function ChatInterne() {
                 <Plus className="h-3 w-3 text-slate-400 cursor-pointer hover:text-indigo-600" />
               </div>
               <div className="space-y-1">
-                {channels.map((c) => (
-                  <div key={c} className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 cursor-pointer transition-colors">
+                {channels.map((channel) => (
+                  <div key={channel.id} className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 cursor-pointer transition-colors">
                     <Hash className="h-3.5 w-3.5 text-slate-400" />
-                    {c}
+                    {channel.name}
                   </div>
                 ))}
               </div>
@@ -42,13 +45,13 @@ export default function ChatInterne() {
                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Direct Messages</span>
               </div>
               <div className="space-y-1">
-                {users.map((u) => (
-                  <div key={u.name} className="flex items-center justify-between px-2 py-1.5 rounded-lg hover:bg-slate-50 cursor-pointer transition-colors">
+                {users.map((user) => (
+                  <div key={user.id} className="flex items-center justify-between px-2 py-1.5 rounded-lg hover:bg-slate-50 cursor-pointer transition-colors">
                     <div className="flex items-center gap-2 text-sm font-medium text-slate-600">
                       <div className="h-2 w-2 rounded-full bg-slate-300" />
-                      {u.name}
+                      {user.first_name} {user.last_name}
                     </div>
-                    {u.status === 'online' && <div className="h-1.5 w-1.5 rounded-full bg-emerald-500" />}
+                    <div className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
                   </div>
                 ))}
               </div>
@@ -57,7 +60,6 @@ export default function ChatInterne() {
         </Card>
       </div>
 
-      {/* Main Chat Area */}
       <Card className="flex-1 border-slate-200 dark:border-slate-800 shadow-sm flex flex-col overflow-hidden">
         <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-white dark:bg-slate-950 z-10">
           <div className="flex items-center gap-3">
@@ -65,62 +67,57 @@ export default function ChatInterne() {
               <Hash className="h-4 w-4 text-indigo-600" />
             </div>
             <div>
-              <h3 className="text-sm font-bold text-slate-900 dark:text-white"># Général</h3>
+              <h3 className="text-sm font-bold text-slate-900 dark:text-white"># {activeChannel?.name || "General"}</h3>
               <p className="text-[10px] text-slate-400 font-medium italic">Communication globale de l'entreprise</p>
             </div>
           </div>
           <Button variant="ghost" size="sm" className="gap-2 text-indigo-600">
-            <Sparkles className="h-3.5 w-3.5" /> Résumé IA
+            <Sparkles className="h-3.5 w-3.5" /> Resume IA
           </Button>
         </div>
 
         <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-50/30">
-          <div className="flex gap-3">
-            <div className="h-8 w-8 rounded-full bg-slate-200 shrink-0 flex items-center justify-center">
-              <User className="h-4 w-4 text-slate-500" />
-            </div>
-            <div className="space-y-1 max-w-[70%]">
-              <div className="flex items-end gap-2">
-                <span className="text-xs font-bold text-slate-900">Admin GNIX</span>
-                <span className="text-[10px] text-slate-400">09:12</span>
-              </div>
-              <div className="p-3 bg-white border border-slate-100 rounded-2xl rounded-tl-none text-sm text-slate-700 shadow-sm">
-                Bonjour à tous ! L'IA a fini l'analyse des ventes de la veille. Vous pouvez consulter les prévisions dans le module Analytics.
-              </div>
-            </div>
-          </div>
-
-          <div className="flex gap-3 justify-end">
-            <div className="space-y-1 max-w-[70%] flex flex-col items-end">
-              <div className="flex items-end gap-2">
-                <span className="text-[10px] text-slate-400">09:15</span>
-                <span className="text-xs font-bold text-slate-900">Moi</span>
-              </div>
-              <div className="p-3 bg-indigo-600 text-white rounded-2xl rounded-tr-none text-sm shadow-md">
-                Super, merci pour l'info ! Je vais regarder ça tout de suite.
+          {messages.map((message) => (
+            <div key={message.id} className={`flex gap-3 ${message.is_me ? "justify-end" : ""}`}>
+              {!message.is_me && (
+                <div className="h-8 w-8 rounded-full bg-slate-200 shrink-0 flex items-center justify-center">
+                  <User className="h-4 w-4 text-slate-500" />
+                </div>
+              )}
+              <div className={`space-y-1 max-w-[70%] ${message.is_me ? "flex flex-col items-end" : ""}`}>
+                <div className="flex items-end gap-2">
+                  {message.is_me && <span className="text-[10px] text-slate-400">{message.sent_at}</span>}
+                  <span className="text-xs font-bold text-slate-900">{message.author}</span>
+                  {!message.is_me && <span className="text-[10px] text-slate-400">{message.sent_at}</span>}
+                </div>
+                <div className={`p-3 rounded-2xl text-sm shadow-sm ${message.is_me ? "bg-indigo-600 text-white rounded-tr-none" : "bg-white border border-slate-100 rounded-tl-none text-slate-700"}`}>
+                  {message.content}
+                </div>
               </div>
             </div>
-          </div>
+          ))}
         </div>
 
         <div className="p-4 bg-white dark:bg-slate-950 border-t border-slate-100 dark:border-slate-800">
-          <div className="relative group">
+          <form action={sendMessage} className="relative group">
+            <input type="hidden" name="channel_id" value={activeChannel?.id || ""} />
             <Input 
+              name="content"
               className="pr-24 h-12 bg-slate-50 border-none rounded-xl focus:ring-2 focus:ring-indigo-500/20 transition-all" 
-              placeholder="Écrire un message dans # Général..." 
+              placeholder={`Ecrire un message dans # ${activeChannel?.name || "General"}...`}
             />
             <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
-              <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-indigo-600">
+              <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-indigo-600">
                 <Smile className="h-5 w-5" />
               </Button>
-              <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-indigo-600">
+              <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-indigo-600">
                 <Paperclip className="h-5 w-5" />
               </Button>
-              <Button size="icon" className="h-8 w-8 bg-indigo-600 hover:bg-indigo-700 text-white shadow-md">
+              <Button type="submit" size="icon" className="h-8 w-8 bg-indigo-600 hover:bg-indigo-700 text-white shadow-md">
                 <Send className="h-4 w-4" />
               </Button>
             </div>
-          </div>
+          </form>
         </div>
       </Card>
     </div>

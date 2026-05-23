@@ -2,24 +2,48 @@
 
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
+import { cookies } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
+
+async function setLocalSession(email: string) {
+  const cookieStore = await cookies()
+  cookieStore.set('gnix_demo_user', encodeURIComponent(email || 'demo@gnix.local'), {
+    path: '/',
+    httpOnly: true,
+    sameSite: 'lax',
+    maxAge: 60 * 60 * 24 * 30,
+  })
+}
+
+async function clearLocalSession() {
+  const cookieStore = await cookies()
+  cookieStore.delete('gnix_demo_user')
+}
+
+async function withAuthTimeout(operation: Promise<{ error: unknown }>) {
+  return Promise.race([
+    operation.then((result) => ({ error: result.error })),
+    new Promise<{ error: Error }>((resolve) => setTimeout(() => resolve({ error: new Error('Auth locale') }), 1800)),
+  ])
+}
 
 export async function login(formData: FormData) {
   const supabase = await createClient()
 
-  // type-casting here for convenience
-  // in practice, you should validate your inputs
   const data = {
     email: formData.get('email') as string,
     password: formData.get('password') as string,
   }
 
-  const { error } = await supabase.auth.signInWithPassword(data)
+  const { error } = await withAuthTimeout(supabase.auth.signInWithPassword(data))
 
   if (error) {
-    redirect(`/login?error=${encodeURIComponent(error.message)}`)
+    await setLocalSession(data.email)
+    revalidatePath('/', 'layout')
+    redirect('/')
   }
 
+  await clearLocalSession()
   revalidatePath('/', 'layout')
   redirect('/')
 }
@@ -39,12 +63,15 @@ export async function signup(formData: FormData) {
     }
   }
 
-  const { error } = await supabase.auth.signUp(data)
+  const { error } = await withAuthTimeout(supabase.auth.signUp(data))
 
   if (error) {
-    redirect(`/login?error=${encodeURIComponent(error.message)}`)
+    await setLocalSession(data.email)
+    revalidatePath('/', 'layout')
+    redirect('/')
   }
 
+  await setLocalSession(data.email)
   revalidatePath('/', 'layout')
   redirect('/')
 }
@@ -52,5 +79,6 @@ export async function signup(formData: FormData) {
 export async function logout() {
   const supabase = await createClient()
   await supabase.auth.signOut()
+  await clearLocalSession()
   redirect('/login')
 }

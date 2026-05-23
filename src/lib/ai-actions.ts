@@ -1,95 +1,66 @@
 'use server'
 
-import { GoogleGenerativeAI } from "@google/generative-ai";
-import { createClient } from "@/lib/supabase/server";
+import { GoogleGenerativeAI } from "@google/generative-ai"
+import { getDashboardData, getProductsData } from "@/lib/erp-data"
 
 async function getAppDataSummary() {
-  const supabase = await createClient()
-  
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return "Utilisateur non connecté."
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('organization_id')
-    .eq('id', user.id)
-    .single()
-
-  if (!profile?.organization_id) return "Aucune organisation trouvée."
-
-  const orgId = profile.organization_id
-
-  // Récupération parallélisée des statistiques clés
-  const [
-    { count: clientsCount },
-    { count: unpaidInvoicesCount },
-    { count: productsCount },
-    { count: employeesCount }
-  ] = await Promise.all([
-    supabase.from('clients').select('*', { count: 'exact', head: true }).eq('organization_id', orgId),
-    supabase.from('invoices').select('*', { count: 'exact', head: true }).eq('organization_id', orgId).neq('status', 'paid'),
-    supabase.from('products').select('*', { count: 'exact', head: true }).eq('organization_id', orgId),
-    supabase.from('employees').select('*', { count: 'exact', head: true }).eq('organization_id', orgId)
-  ])
+  const [dashboard, products] = await Promise.all([getDashboardData(), getProductsData()])
+  const lowStock = products.filter((product) => product.totalStock <= 10).length
 
   return `
     CONTEXTE DE L'ENTREPRISE (GNIX ERP) :
-    - Clients : ${clientsCount || 0}
-    - Factures impayées : ${unpaidInvoicesCount || 0}
-    - Produits en catalogue : ${productsCount || 0}
-    - Effectif (Employés) : ${employeesCount || 0}
+    - Clients : ${dashboard.clientsCount}
+    - Valeur pipeline : ${dashboard.totalRevenue}
+    - Revenu encaisse : ${dashboard.paidRevenue}
+    - Projets : ${dashboard.projectsCount}
+    - Taches ouvertes : ${dashboard.openTasks}
+    - Produits en stock critique : ${lowStock}
+    - Score CRM moyen : ${dashboard.avgScore}/100
   `
 }
 
 export async function processAICommand(command: string) {
-  const apiKey = process.env.GEMINI_API_KEY;
-  const dataSummary = await getAppDataSummary();
+  const apiKey = process.env.GEMINI_API_KEY
+  const dataSummary = await getAppDataSummary()
 
   if (!apiKey) {
-    // Mode Simulation Enrichi avec les données réelles
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    const cmd = command.toLowerCase();
-    if (cmd.includes('combien') || cmd.includes('stat') || cmd.includes('résumé')) {
+    await new Promise((resolve) => setTimeout(resolve, 700))
+    const clients = dataSummary.match(/Clients : (\d+)/)?.[1] ?? "0"
+    const projects = dataSummary.match(/Projets : (\d+)/)?.[1] ?? "0"
+
+    if (command.toLowerCase().includes("combien") || command.toLowerCase().includes("stat")) {
       return {
-        message: `Voici un point rapide basé sur vos données : Vous avez actuellement ${dataSummary.match(/Clients : (\d+)/)?.[1]} clients et ${dataSummary.match(/Effectif \(Employés\) : (\d+)/)?.[1]} employés enregistrés.`,
-        type: 'info'
-      };
+        message: `Point rapide : ${clients} clients, ${projects} projets et un score CRM moyen disponible dans le tableau de bord.`,
+        type: "info",
+      }
     }
 
     return {
-      message: `[Mode Démo] Commande reçue : "${command}". Connectez Gemini pour une analyse profonde de vos ${dataSummary.match(/Clients : (\d+)/)?.[1]} clients.`,
-      type: 'info'
-    };
+      message: `[Mode local] Commande recue : "${command}". Les donnees ERP sont accessibles; ajoutez GEMINI_API_KEY pour une analyse IA avancee.`,
+      type: "info",
+    }
   }
 
-  // Vraie intégration Gemini avec Contexte Data
   try {
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-
+    const genAI = new GoogleGenerativeAI(apiKey)
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" })
     const prompt = `
-      Tu es l'intelligence artificielle centrale de GNIX ERP. 
-      Voici les données actuelles de l'organisation de l'utilisateur :
+      Tu es l'intelligence artificielle centrale de GNIX ERP.
+      Voici les donnees actuelles de l'organisation :
       ${dataSummary}
 
-      L'utilisateur a donné l'instruction suivante : "${command}".
+      Instruction utilisateur : "${command}".
 
-      RÈGLES :
-      1. Réponds de manière concise, intelligente et professionnelle.
-      2. Utilise les chiffres du contexte si pertinent pour répondre.
-      3. Si l'utilisateur demande "combien" ou "quel est l'état", sers-toi du résumé fourni.
-      4. Garde un ton d'assistant de direction de haut niveau.
-    `;
+      Reponds de maniere concise, professionnelle, et exploite les chiffres si pertinent.
+    `
 
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
+    const result = await model.generateContent(prompt)
+    const response = await result.response
     return {
       message: response.text(),
-      type: 'ai_response'
-    };
-  } catch (error) {
-    console.error("Erreur IA Gemini:", error);
-    return { message: "Désolé, une erreur technique est survenue avec le service IA.", type: 'error' };
+      type: "ai_response",
+    }
+  } catch {
+    return { message: "Le service IA est indisponible pour le moment, mais vos donnees ERP restent operationnelles.", type: "error" }
   }
 }

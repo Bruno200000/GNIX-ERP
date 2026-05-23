@@ -12,7 +12,7 @@ export function CreateDeliveryNoteDialog() {
   const [open, setOpen] = useState(false)
   const [clients, setClients] = useState<Client[]>([])
   const [products, setProducts] = useState<Product[]>([])
-  const [items, setItems] = useState([{ id: Date.now(), product_id: '', qty: 0 }])
+  const [items, setItems] = useState([{ id: String(Date.now()), product_id: '', qty: 0 }])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -23,9 +23,9 @@ export function CreateDeliveryNoteDialog() {
     }
   }, [open])
 
-  const addItem = () => setItems([...items, { id: Date.now(), product_id: '', qty: 0 }])
-  const removeItem = (id: number) => setItems(items.filter(i => i.id !== id))
-  const updateItem = (id: number, field: string, value: any) => {
+  const addItem = () => setItems([...items, { id: String(Date.now()), product_id: '', qty: 0 }])
+  const removeItem = (id: string) => setItems(items.filter(i => i.id !== id))
+  const updateItem = (id: string, field: string, value: string) => {
     setItems(items.map(item => item.id === id ? { ...item, [field]: value } : item))
   }
 
@@ -33,9 +33,13 @@ export function CreateDeliveryNoteDialog() {
     setLoading(true)
     setError(null)
     try {
-      await createDeliveryNote(formData, items)
+      await createDeliveryNote(formData, items.map((item) => ({
+        id: item.id,
+        product_id: item.product_id,
+        qty: Number(item.qty),
+      })))
       setOpen(false)
-      setItems([{ id: Date.now(), product_id: '', qty: 0 }])
+      setItems([{ id: String(Date.now()), product_id: '', qty: 0 }])
     } catch (e: any) {
       setError(e.message)
     } finally {

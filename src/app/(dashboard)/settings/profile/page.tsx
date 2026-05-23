@@ -1,34 +1,38 @@
+import { getProfile, saveProfile } from "../actions"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { User, Mail, Shield } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 
-export default function SettingsProfile() {
+export default async function SettingsProfile() {
+  const profile = await getProfile()
+
   return (
     <div className="space-y-6 max-w-2xl">
       <h1 className="text-3xl font-bold tracking-tight">Mon Profil</h1>
-      <p className="text-sm text-slate-500">Gérez vos informations personnelles et préférences de compte.</p>
+      <p className="text-sm text-slate-500">Gerez vos informations personnelles et preferences de compte.</p>
       
       <Card>
         <CardHeader>
-          <CardTitle>Informations Générales</CardTitle>
+          <CardTitle>Informations Generales</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <label className="text-xs font-bold text-slate-500 uppercase">Prénom</label>
-              <Input defaultValue="Bruno" />
+        <CardContent>
+          <form action={saveProfile} className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-500 uppercase">Prenom</label>
+                <Input name="first_name" defaultValue={profile?.first_name || ""} />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-500 uppercase">Nom</label>
+                <Input name="last_name" defaultValue={profile?.last_name || ""} />
+              </div>
             </div>
             <div className="space-y-2">
-              <label className="text-xs font-bold text-slate-500 uppercase">Nom</label>
-              <Input defaultValue="Admin" />
+              <label className="text-xs font-bold text-slate-500 uppercase">Email</label>
+              <Input name="email" defaultValue={profile?.email || ""} type="email" />
             </div>
-          </div>
-          <div className="space-y-2">
-            <label className="text-xs font-bold text-slate-500 uppercase">Email</label>
-            <Input defaultValue="bruno@gnix.ia" type="email" />
-          </div>
-          <Button className="bg-indigo-600 text-white">Sauvegarder les modifications</Button>
+            <Button className="bg-indigo-600 text-white" type="submit">Sauvegarder les modifications</Button>
+          </form>
         </CardContent>
       </Card>
     </div>

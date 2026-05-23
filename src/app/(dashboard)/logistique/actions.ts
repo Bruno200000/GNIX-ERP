@@ -1,22 +1,26 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+import {
+  createDeliveryNoteData,
+  createProductData,
+  createStockEntryData,
+  getDeliveryNotesData,
+  getProductsData,
+  getShipmentsData,
+  getWarehousesData,
+  type DeliveryItem,
+  type InventoryRecord,
+  type ProductRecord,
+  type WarehouseRecord,
+} from '@/lib/erp-data'
 
-export type Product = {
-  id: string
-  sku: string
-  name: string
-  price: number
-  image_url?: string
-  inventory: { quantity: number; warehouses: { name: string } }[]
+export type Product = ProductRecord & {
+  inventory: (InventoryRecord & { warehouses: WarehouseRecord | null })[]
+  totalStock: number
 }
 
-export type Warehouse = {
-  id: string
-  name: string
-  location: string
-}
+export type Warehouse = WarehouseRecord
 
 export type StockEntry = {
   id: string
@@ -28,142 +32,35 @@ export type StockEntry = {
 }
 
 export async function getProducts() {
-  const supabase = await createClient()
-  
-  // Requête avec jointure pour récupérer les stocks
-  const { data: products, error } = await supabase
-    .from('products')
-    .select(`
-      id,
-      sku,
-      name,
-      price,
-      inventory (
-        quantity,
-        warehouses (
-          name
-        )
-      )
-    `)
-    .order('created_at', { ascending: false })
-
-  if (error) {
-    console.error('Error fetching products:', error)
-    return []
-  }
-
-  return products as unknown as Product[]
+  return getProductsData()
 }
 
 export async function getWarehouses() {
-  const supabase = await createClient()
-  const { data: warehouses, error } = await supabase
-    .from('warehouses')
-    .select('*')
-    .order('name')
+  return getWarehousesData()
+}
 
-  if (error) {
-    console.error('Error fetching warehouses:', error)
-    return []
-  }
+export async function getDeliveryNotes() {
+  return getDeliveryNotesData()
+}
 
-  return warehouses as Warehouse[]
+export async function getShipments() {
+  return getShipmentsData()
 }
 
 export async function addProduct(formData: FormData) {
-  const supabase = await createClient()
-
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error("Vous devez être connecté.")
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('organization_id')
-    .eq('id', user.id)
-    .single()
-
-  if (!profile?.organization_id) throw new Error("Aucune organisation.")
-
-  const newProduct = {
-    organization_id: profile.organization_id,
-    name: formData.get('name') as string,
-    sku: formData.get('sku') as string,
-    price: parseFloat(formData.get('price') as string),
-  }
-
-  const { error } = await supabase.from('products').insert([newProduct])
-
-  if (error) {
-    console.error("Error creating product:", error)
-    throw new Error("Erreur lors de la création du produit")
-  }
-
+  await createProductData(formData)
   revalidatePath('/logistique')
+  revalidatePath('/logistique/warehouses')
 }
 
 export async function addStockEntry(formData: FormData) {
-  const supabase = await createClient()
-
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error("Vous devez être connecté.")
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('organization_id')
-    .eq('id', user.id)
-    .single()
-
-  if (!profile?.organization_id) throw new Error("Aucune organisation.")
-
-  const newEntry = {
-    organization_id: profile.organization_id,
-    product_id: formData.get('product_id') as string,
-    warehouse_id: formData.get('warehouse_id') as string,
-    quantity: parseInt(formData.get('quantity') as string),
-    type: 'in',
-    notes: formData.get('notes') as string
-  }
-
-  // Dans un vrai ERP, on mettrait aussi à jour la table inventory ou via un trigger DB
-  const { error } = await supabase.from('stock_entries').insert([newEntry])
-
-  if (error) {
-    console.error("Error creating stock entry:", error)
-    throw new Error("Erreur lors de l'entrée de stock")
-  }
-
+  await createStockEntryData(formData)
   revalidatePath('/logistique')
+  revalidatePath('/logistique/warehouses')
 }
 
-export async function createDeliveryNote(formData: FormData, items: any[]) {
-  const supabase = await createClient()
-
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error("Vous devez être connecté.")
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('organization_id')
-    .eq('id', user.id)
-    .single()
-
-  if (!profile?.organization_id) throw new Error("Aucune organisation.")
-
-  const newBL = {
-    organization_id: profile.organization_id,
-    client_id: formData.get('client_id') as string,
-    delivery_date: formData.get('delivery_date') as string,
-    notes: formData.get('notes') as string,
-    items: items,
-    status: 'pending'
-  }
-
-  const { error } = await supabase.from('delivery_notes').insert([newBL])
-
-  if (error) {
-    console.error("Error creating delivery note:", error)
-    throw new Error("Erreur lors de la création du bon de livraison")
-  }
-
+export async function createDeliveryNote(formData: FormData, items: DeliveryItem[]) {
+  await createDeliveryNoteData(formData, items)
   revalidatePath('/logistique/delivery-notes')
+  revalidatePath('/logistique')
 }
