@@ -5,7 +5,12 @@ import { cookies } from "next/headers"
 import type { SupabaseClient, User } from "@supabase/supabase-js"
 import { createClient } from "@/lib/supabase/server"
 
-const dataFile = path.join(process.cwd(), ".data", "erp-db.json")
+function getDataFilePath() {
+  const baseDir = process.env.NODE_ENV === "production" ? "/tmp" : process.cwd()
+  return path.join(baseDir, ".data", "erp-db.json")
+}
+
+const dataFile = getDataFilePath()
 
 export type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue }
 
@@ -1109,8 +1114,12 @@ async function readStore(): Promise<ErpStore> {
 }
 
 async function writeStore(store: ErpStore) {
-  await mkdir(path.dirname(dataFile), { recursive: true })
-  await writeFile(dataFile, JSON.stringify(store, null, 2), "utf8")
+  try {
+    await mkdir(path.dirname(getDataFilePath()), { recursive: true })
+    await writeFile(getDataFilePath(), JSON.stringify(store, null, 2), "utf8")
+  } catch {
+    // Fallback for serverless environments where the working directory is read-only.
+  }
 }
 
 function metadataText(user: User | null, key: string, fallback = "") {
