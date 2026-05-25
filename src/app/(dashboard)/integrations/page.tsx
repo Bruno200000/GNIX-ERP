@@ -81,10 +81,10 @@ export default async function IntegrationsPage() {
                     <input type="hidden" name="integration_id" value={app.id} />
                     <Button 
                       type="submit"
-                      variant="outline"
+                      variant="destructive"
                       className="w-full gap-2 rounded-xl h-11"
                     >
-                      Desactiver
+                      Déconnecter
                       <ArrowRight className="h-4 w-4" />
                     </Button>
                   </form>

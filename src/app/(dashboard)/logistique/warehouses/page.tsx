@@ -30,6 +30,10 @@ export default async function LogistiqueWarehouses() {
     return { ...warehouse, qty, fill: warehouse.capacity ? Math.round((qty / warehouse.capacity) * 100) : 0 }
   })
 
+  const totalWarehouses = warehouses.length
+  const totalItems = inventoryRows.reduce((sum, row) => sum + row.qty, 0)
+  const avgFillRate = stockByWarehouse.length ? Math.round(stockByWarehouse.reduce((sum, w) => sum + w.fill, 0) / stockByWarehouse.length) : 0
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -41,6 +45,42 @@ export default async function LogistiqueWarehouses() {
           <TransferStockDialog />
           <AddStockDialog />
         </div>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-3 mb-6">
+        <Card className="bg-indigo-50/50 border-indigo-100 shadow-sm">
+          <CardContent className="p-4 flex items-center justify-between">
+            <div>
+              <p className="text-xs font-bold text-indigo-600 uppercase tracking-wider">Total Entrepôts</p>
+              <h3 className="text-2xl font-black text-slate-900 mt-1">{totalWarehouses}</h3>
+            </div>
+            <div className="h-10 w-10 bg-indigo-100 rounded-xl flex items-center justify-center">
+              <MapPin className="h-5 w-5 text-indigo-600" />
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="bg-emerald-50/50 border-emerald-100 shadow-sm">
+          <CardContent className="p-4 flex items-center justify-between">
+            <div>
+              <p className="text-xs font-bold text-emerald-600 uppercase tracking-wider">Total Articles</p>
+              <h3 className="text-2xl font-black text-slate-900 mt-1">{totalItems.toLocaleString("fr-FR")}</h3>
+            </div>
+            <div className="h-10 w-10 bg-emerald-100 rounded-xl flex items-center justify-center">
+              <Grid3X3 className="h-5 w-5 text-emerald-600" />
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="bg-blue-50/50 border-blue-100 shadow-sm">
+          <CardContent className="p-4 flex items-center justify-between">
+            <div>
+              <p className="text-xs font-bold text-blue-600 uppercase tracking-wider">Taux Remplissage Moyen</p>
+              <h3 className="text-2xl font-black text-slate-900 mt-1">{avgFillRate}%</h3>
+            </div>
+            <div className="h-10 w-10 bg-blue-100 rounded-xl flex items-center justify-center">
+              <ArrowRightLeft className="h-5 w-5 text-blue-600" />
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       <div className="grid gap-6 md:grid-cols-3">
