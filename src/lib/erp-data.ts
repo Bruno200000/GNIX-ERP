@@ -249,6 +249,8 @@ export type ChatMessageRecord = BaseRecord & {
   content: string
   sent_at: string
   is_me: boolean
+  attachment_url?: string | null
+  attachment_name?: string | null
 }
 
 export type TicketRecord = BaseRecord & {
@@ -303,6 +305,7 @@ export type AppSettingsRecord = BaseRecord & {
   terminal_active?: number
   terminal_mode?: string
   terminal_location?: string
+  last_ai_analysis_at?: string
   ai_email_analysis: boolean
   notifications: Record<string, boolean>
 }
@@ -546,6 +549,18 @@ async function formImageDataUrl(formData: FormData, key: string) {
 
   const buffer = Buffer.from(await value.arrayBuffer())
   return `data:${value.type};base64,${buffer.toString("base64")}`
+}
+
+async function formAttachmentDataUrl(formData: FormData, key: string) {
+  const value = formData.get(key)
+  if (!(value instanceof File) || value.size === 0) return null
+  if (value.size > 3 * 1024 * 1024) throw new Error("Le fichier ne doit pas depasser 3 Mo.")
+
+  const buffer = Buffer.from(await value.arrayBuffer())
+  return {
+    name: value.name,
+    url: `data:${value.type || "application/octet-stream"};base64,${buffer.toString("base64")}`,
+  }
 }
 
 function emptyStore(): ErpStore {
@@ -1277,6 +1292,7 @@ function seedWorkspace(orgId: string, userId: string, email: string, orgName: st
     terminal_active: 14,
     terminal_mode: "Biometrie + GPS",
     terminal_location: "Siege principal",
+    last_ai_analysis_at: nowIso(),
     ai_email_analysis: true,
     notifications: {
       crm_email: true,
@@ -2328,11 +2344,30 @@ export async function getCallsData() {
 
 export async function getChatData() {
   const ctx = await getDbContext()
-  const channels = (await selectSupabaseRows<ChatChannelRecord>(ctx, "chat_channels", "created_at", true))
+  let channels = (await selectSupabaseRows<ChatChannelRecord>(ctx, "chat_channels", "created_at", true))
     ?? (await localRows(ctx, "chat_channels"))
   const messages = (await selectSupabaseRows<ChatMessageRecord>(ctx, "chat_messages", "created_at", true))
     ?? (await localRows(ctx, "chat_messages"))
   const users = await getEmployeesData()
+
+  if (!channels.length) {
+    const defaultChannel: ChatChannelRecord = {
+      id: id("channel"),
+      organization_id: ctx.orgId,
+      name: "General",
+      created_at: nowIso(),
+    }
+
+    if (!(await insertSupabaseRow(ctx, "chat_channels", defaultChannel))) {
+      await mutateStore(ctx, (store) => {
+        if (!store.chat_channels.some((channel) => channel.organization_id === ctx.orgId)) {
+          store.chat_channels.push(defaultChannel)
+        }
+      })
+    }
+
+    channels = [defaultChannel]
+  }
 
   return { channels, messages, users }
 }
@@ -2353,15 +2388,20 @@ export async function createChannelData(formData: FormData) {
 
 export async function sendChatMessageData(formData: FormData) {
   const ctx = await getDbContext()
-  const channels = (await localRows(ctx, "chat_channels")) as ChatChannelRecord[]
+  const { channels } = await getChatData()
+  const profile = await getProfileData()
+  const attachment = await formAttachmentDataUrl(formData, "attachment")
+  const content = formText(formData, "content")
   const record: ChatMessageRecord = {
     id: id("message"),
     organization_id: ctx.orgId,
     channel_id: formText(formData, "channel_id", channels[0]?.id),
-    author: "Moi",
-    content: formText(formData, "content"),
+    author: profile ? `${profile.first_name} ${profile.last_name}`.trim() || profile.email : ctx.email.split("@")[0],
+    content: content || (attachment ? `Piece jointe: ${attachment.name}` : ""),
     sent_at: new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }),
     is_me: true,
+    attachment_url: attachment?.url ?? null,
+    attachment_name: attachment?.name ?? null,
     created_at: nowIso(),
   }
 
@@ -2583,6 +2623,25 @@ export async function updateAttendanceTerminalsData(formData: FormData) {
   await logAudit(ctx, "Configuration terminaux", patch.terminal_location || "Terminaux")
 }
 
+export async function rerunAiAnalysisData() {
+  const ctx = await getDbContext()
+  const settings = await getSettingsData()
+  if (!settings) return
+
+  const patch: Partial<AppSettingsRecord> = {
+    last_ai_analysis_at: nowIso(),
+  }
+
+  if (!(await updateSupabaseRow(ctx, "settings", settings.id, patch as SupabaseRow))) {
+    await mutateStore(ctx, (store) => {
+      const row = store.settings.find((item) => item.id === settings.id)
+      if (row) Object.assign(row, patch)
+    })
+  }
+
+  await logAudit(ctx, "Relance analyse IA", "Analytics")
+}
+
 export async function getOrganizationData() {
   const ctx = await getDbContext()
 
@@ -2606,8 +2665,10 @@ export async function getOrganizationData() {
       id: ctx.orgId,
       name: ctx.orgName,
       domain: ctx.email.includes("@") ? ctx.email.split("@")[1] : null,
-      settings: {},
-      created_at: nowIso(),
+      settings: {
+        slogan: "L'IA au service de votre gestion",
+      },
+      created_at: ctx.user?.created_at || nowIso(),
       members: [],
     }
   }
@@ -2627,7 +2688,20 @@ export async function getProfileData() {
     const { data: profile } = await ctx.supabase.from("profiles").select("*").eq("id", ctx.userId).maybeSingle()
     if (profile) return profile as ProfileRecord
   }
-  return profiles.find((profile) => profile.id === ctx.userId) ?? profiles[0] ?? null
+  const localProfile = profiles.find((profile) => profile.id === ctx.userId) ?? profiles[0]
+  if (localProfile) return localProfile
+
+  return {
+    id: ctx.userId,
+    organization_id: ctx.orgId,
+    first_name: metadataText(ctx.user, "first_name", ctx.email.split("@")[0] || "Utilisateur"),
+    last_name: metadataText(ctx.user, "last_name", ""),
+    email: ctx.email,
+    avatar_url: metadataText(ctx.user, "avatar_url", "") || null,
+    role: ctx.role || "Utilisateur",
+    is_active: ctx.isActive,
+    created_at: ctx.user?.created_at || nowIso(),
+  }
 }
 
 export async function updateProfileData(formData: FormData) {
@@ -2769,6 +2843,7 @@ export async function getSettingsData() {
     terminal_active: 14,
     terminal_mode: "Biometrie + GPS",
     terminal_location: "Siege principal",
+    last_ai_analysis_at: nowIso(),
     ai_email_analysis: true,
     notifications: {
       crm_email: true,
@@ -2796,11 +2871,13 @@ export async function updateSettingsData(formData: FormData) {
   const ctx = await getDbContext()
   const settings = await getSettingsData()
   if (!settings) return
+  const section = formText(formData, "settings_section", "all")
+  const submitted = (target: string) => section === "all" || section === target
 
   const patch: Partial<AppSettingsRecord> = {
     language: formText(formData, "language", settings.language),
-    dark_mode: formData.has("dark_mode") ? formData.get("dark_mode") === "on" : settings.dark_mode,
-    auto_translate: formData.has("auto_translate")
+    dark_mode: submitted("general") ? formData.get("dark_mode") === "on" : settings.dark_mode,
+    auto_translate: submitted("general")
       ? formData.get("auto_translate") === "on"
       : settings.auto_translate,
     ai_provider: formText(formData, "ai_provider", settings.ai_provider),
@@ -2817,21 +2894,21 @@ export async function updateSettingsData(formData: FormData) {
       ? formData.get("auto_response_enabled") === "on"
       : settings.auto_response_enabled,
     auto_response_prompt: formText(formData, "auto_response_prompt", settings.auto_response_prompt),
-    two_factor_enabled: formData.has("two_factor_enabled")
+    two_factor_enabled: submitted("security")
       ? formData.get("two_factor_enabled") === "on"
       : settings.two_factor_enabled,
-    ai_email_analysis: formData.has("ai_email_analysis")
+    ai_email_analysis: submitted("ai")
       ? formData.get("ai_email_analysis") === "on"
       : settings.ai_email_analysis,
     notifications: {
-      crm_email: formData.has("crm_email") ? formData.get("crm_email") === "on" : settings.notifications?.crm_email ?? true,
-      finance_email: formData.has("finance_email") ? formData.get("finance_email") === "on" : settings.notifications?.finance_email ?? true,
-      security_email: formData.has("security_email") ? formData.get("security_email") === "on" : settings.notifications?.security_email ?? true,
-      tasks_email: formData.has("tasks_email") ? formData.get("tasks_email") === "on" : settings.notifications?.tasks_email ?? true,
-      crm_push: formData.has("crm_push") ? formData.get("crm_push") === "on" : settings.notifications?.crm_push ?? false,
-      finance_push: formData.has("finance_push") ? formData.get("finance_push") === "on" : settings.notifications?.finance_push ?? false,
-      security_push: formData.has("security_push") ? formData.get("security_push") === "on" : settings.notifications?.security_push ?? false,
-      tasks_push: formData.has("tasks_push") ? formData.get("tasks_push") === "on" : settings.notifications?.tasks_push ?? false,
+      crm_email: submitted("notifications") ? formData.get("crm_email") === "on" : settings.notifications?.crm_email ?? true,
+      finance_email: submitted("notifications") ? formData.get("finance_email") === "on" : settings.notifications?.finance_email ?? true,
+      security_email: submitted("notifications") ? formData.get("security_email") === "on" : settings.notifications?.security_email ?? true,
+      tasks_email: submitted("notifications") ? formData.get("tasks_email") === "on" : settings.notifications?.tasks_email ?? true,
+      crm_push: submitted("notifications") ? formData.get("crm_push") === "on" : settings.notifications?.crm_push ?? false,
+      finance_push: submitted("notifications") ? formData.get("finance_push") === "on" : settings.notifications?.finance_push ?? false,
+      security_push: submitted("notifications") ? formData.get("security_push") === "on" : settings.notifications?.security_push ?? false,
+      tasks_push: submitted("notifications") ? formData.get("tasks_push") === "on" : settings.notifications?.tasks_push ?? false,
     },
   }
 

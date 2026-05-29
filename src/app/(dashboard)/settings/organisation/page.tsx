@@ -25,6 +25,10 @@ export default async function SettingsOrganisation() {
                 <Input name="name" defaultValue={organization.name} />
               </div>
               <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-500 uppercase">Date de creation</label>
+                <Input value={new Date(organization.created_at).toLocaleDateString("fr-FR")} readOnly className="bg-slate-50 text-slate-500" />
+              </div>
+              <div className="space-y-2">
                 <label className="text-xs font-bold text-slate-500 uppercase">Slogan / baseline</label>
                 <Input name="slogan" defaultValue={String(settings.slogan || "")} />
               </div>

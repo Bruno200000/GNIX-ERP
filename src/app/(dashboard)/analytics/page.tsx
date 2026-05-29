@@ -1,15 +1,23 @@
-import { getDashboardData, getInvoicesData, getProductsData, getProjectsData } from "@/lib/erp-data"
+import { getDashboardData, getInvoicesData, getProductsData, getProjectsData, getSettingsData, rerunAiAnalysisData } from "@/lib/erp-data"
+import { revalidatePath } from "next/cache"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { BarChart3, TrendingUp, TrendingDown, Sparkles, BrainCircuit, AlertTriangle, Lightbulb } from "lucide-react"
 
 export default async function AnalyticsIA() {
-  const [dashboard, invoices, products, projects] = await Promise.all([
+  async function rerunAnalysis() {
+    "use server"
+    await rerunAiAnalysisData()
+    revalidatePath("/analytics")
+  }
+
+  const [dashboard, invoices, products, projects, settings] = await Promise.all([
     getDashboardData(),
     getInvoicesData(),
     getProductsData(),
     getProjectsData(),
+    getSettingsData(),
   ])
   const unpaid = invoices.filter((invoice) => invoice.status !== "paid").reduce((sum, invoice) => sum + invoice.total_amount, 0)
   const stockRisk = products.filter((product) => product.totalStock <= 10).length
@@ -49,10 +57,15 @@ export default async function AnalyticsIA() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button className="bg-indigo-600 hover:bg-indigo-700 gap-2 text-white shadow-lg shadow-indigo-500/20">
-            <BrainCircuit className="h-4 w-4" /> Relancer l'Analyse
-          </Button>
+          <form action={rerunAnalysis}>
+            <Button className="bg-indigo-600 hover:bg-indigo-700 gap-2 text-white shadow-lg shadow-indigo-500/20" type="submit">
+              <BrainCircuit className="h-4 w-4" /> Relancer l'Analyse
+            </Button>
+          </form>
         </div>
+      </div>
+      <div className="rounded-xl border border-indigo-100 bg-indigo-50 px-4 py-3 text-xs font-bold text-indigo-700">
+        Derniere analyse IA: {settings?.last_ai_analysis_at ? new Date(settings.last_ai_analysis_at).toLocaleString("fr-FR") : "Jamais"}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

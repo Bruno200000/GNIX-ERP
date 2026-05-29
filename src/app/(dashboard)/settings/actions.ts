@@ -49,7 +49,10 @@ export async function requestPasswordReset() {
   const profile = await getProfileData()
 
   if (supabase && profile?.email) {
-    await supabase.auth.resetPasswordForEmail(profile.email)
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
+    await supabase.auth.resetPasswordForEmail(profile.email, {
+      redirectTo: `${siteUrl}/settings/security`,
+    })
   }
 
   revalidatePath('/settings')

@@ -1,11 +1,12 @@
 import { createChannelData, getChatData, sendChatMessageData } from "@/lib/erp-data"
 import { revalidatePath } from "next/cache"
 import Link from "next/link"
+import { ChatMessageComposer } from "@/components/communication/ChatMessageComposer"
+import { ChatSummaryDialog } from "@/components/communication/ChatSummaryDialog"
 import { CreateChannelDialog } from "@/components/communication/CreateChannelDialog"
 import { Card } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Send, Hash, User, Search, Plus, Sparkles, Smile, Paperclip } from "lucide-react"
+import { Hash, User, Search, Plus, Paperclip } from "lucide-react"
 
 async function sendMessage(formData: FormData) {
   "use server"
@@ -93,9 +94,7 @@ export default async function ChatInterne({
               <p className="text-[10px] text-slate-400 font-medium italic">Communication globale de l'entreprise</p>
             </div>
           </div>
-          <Button variant="ghost" size="sm" className="gap-2 text-indigo-600">
-            <Sparkles className="h-3.5 w-3.5" /> Resume IA
-          </Button>
+          <ChatSummaryDialog messages={channelMessages} />
         </div>
 
         <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-50/30">
@@ -114,6 +113,16 @@ export default async function ChatInterne({
                 </div>
                 <div className={`p-3 rounded-2xl text-sm shadow-sm ${message.is_me ? "bg-indigo-600 text-white rounded-tr-none" : "bg-white border border-slate-100 rounded-tl-none text-slate-700"}`}>
                   {message.content}
+                  {message.attachment_url && (
+                    <a
+                      href={message.attachment_url}
+                      download={message.attachment_name || "piece-jointe"}
+                      className={`mt-2 flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold ${message.is_me ? "bg-white/15 text-white" : "bg-slate-50 text-indigo-600"}`}
+                    >
+                      <Paperclip className="h-3.5 w-3.5" />
+                      {message.attachment_name || "Piece jointe"}
+                    </a>
+                  )}
                 </div>
               </div>
             </div>
@@ -121,25 +130,11 @@ export default async function ChatInterne({
         </div>
 
         <div className="p-4 bg-white dark:bg-slate-950 border-t border-slate-100 dark:border-slate-800">
-          <form action={sendMessage} className="relative group">
-            <input type="hidden" name="channel_id" value={activeChannel?.id || ""} />
-            <Input 
-              name="content"
-              className="pr-24 h-12 bg-slate-50 border-none rounded-xl focus:ring-2 focus:ring-indigo-500/20 transition-all" 
-              placeholder={`Ecrire un message dans # ${activeChannel?.name || "General"}...`}
-            />
-            <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
-              <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-indigo-600">
-                <Smile className="h-5 w-5" />
-              </Button>
-              <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-indigo-600">
-                <Paperclip className="h-5 w-5" />
-              </Button>
-              <Button type="submit" size="icon" className="h-8 w-8 bg-indigo-600 hover:bg-indigo-700 text-white shadow-md">
-                <Send className="h-4 w-4" />
-              </Button>
-            </div>
-          </form>
+          <ChatMessageComposer
+            channelId={activeChannel?.id || ""}
+            channelName={activeChannel?.name || "General"}
+            action={sendMessage}
+          />
         </div>
       </Card>
     </div>

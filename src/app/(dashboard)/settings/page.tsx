@@ -19,8 +19,7 @@ export default async function SettingsPage() {
         </p>
       </div>
 
-      <form action={saveSettings}>
-        <Tabs defaultValue="general" className="space-y-4">
+      <Tabs defaultValue="general" className="space-y-4">
           <TabsList className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
             <TabsTrigger value="general">General</TabsTrigger>
             <TabsTrigger value="ai">Intelligence Artificielle</TabsTrigger>
@@ -35,17 +34,19 @@ export default async function SettingsPage() {
                 <CardTitle>Preferences Generales</CardTitle>
                 <CardDescription>Configurez les parametres de base de votre compte.</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-6">
+              <CardContent>
+                <form action={saveSettings} className="space-y-6">
+                <input type="hidden" name="settings_section" value="general" />
                 <div className="space-y-2">
                   <Label htmlFor="language">Langue de l'interface</Label>
                   <div className="flex gap-4">
-                    <label className="inline-flex">
-                      <input className="sr-only" type="radio" name="language" value="fr" defaultChecked={settings?.language !== "en"} />
-                      <span className="inline-flex h-10 items-center rounded-md border border-indigo-600 bg-indigo-50 px-4 text-sm font-medium text-indigo-600">Francais</span>
+                    <label className="inline-flex cursor-pointer">
+                      <input className="peer sr-only" type="radio" name="language" value="fr" defaultChecked={settings?.language !== "en"} />
+                      <span className="inline-flex h-10 items-center rounded-md border border-slate-200 px-4 text-sm font-medium peer-checked:border-indigo-600 peer-checked:bg-indigo-50 peer-checked:text-indigo-600">Francais</span>
                     </label>
-                    <label className="inline-flex">
-                      <input className="sr-only" type="radio" name="language" value="en" defaultChecked={settings?.language === "en"} />
-                      <span className="inline-flex h-10 items-center rounded-md border border-slate-200 px-4 text-sm font-medium">English</span>
+                    <label className="inline-flex cursor-pointer">
+                      <input className="peer sr-only" type="radio" name="language" value="en" defaultChecked={settings?.language === "en"} />
+                      <span className="inline-flex h-10 items-center rounded-md border border-slate-200 px-4 text-sm font-medium peer-checked:border-indigo-600 peer-checked:bg-indigo-50 peer-checked:text-indigo-600">English</span>
                     </label>
                   </div>
                 </div>
@@ -76,6 +77,7 @@ export default async function SettingsPage() {
                   <Button variant="outline" type="reset">Annuler</Button>
                   <Button className="bg-indigo-600 hover:bg-indigo-700" type="submit">Enregistrer</Button>
                 </div>
+                </form>
               </CardContent>
             </Card>
           </TabsContent>
@@ -88,7 +90,9 @@ export default async function SettingsPage() {
                 </CardTitle>
                 <CardDescription>Connectez vos modeles pour activer l'analyse predictive et les commandes vocales.</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-6">
+              <CardContent>
+                <form action={saveSettings} className="space-y-6">
+                <input type="hidden" name="settings_section" value="ai" />
                 <div className="space-y-2">
                   <Label htmlFor="provider">Fournisseur d'IA</Label>
                   <select name="ai_provider" defaultValue={settings?.ai_provider || "gemini"} className="flex h-10 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-600">
@@ -123,6 +127,7 @@ export default async function SettingsPage() {
                 <div className="pt-4 flex justify-end gap-3">
                   <Button className="bg-indigo-600 hover:bg-indigo-700 rounded-xl px-8 h-12 shadow-lg shadow-indigo-500/20" type="submit">Activer l'IA</Button>
                 </div>
+                </form>
               </CardContent>
             </Card>
           </TabsContent>
@@ -133,7 +138,9 @@ export default async function SettingsPage() {
                 <CardTitle>Centre de Notifications</CardTitle>
                 <CardDescription>Choisissez comment vous souhaitez etre informe.</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent>
+                <form action={saveSettings} className="space-y-4">
+                <input type="hidden" name="settings_section" value="notifications" />
                 {[
                   { key: "crm", name: "Alertes CRM", desc: "Nouveau lead ou score IA eleve", icon: User },
                   { key: "finance", name: "Finance", desc: "Retards de paiement ou factures a valider", icon: CreditCard },
@@ -168,6 +175,7 @@ export default async function SettingsPage() {
                 <div className="pt-4 flex justify-end">
                   <Button className="bg-indigo-600 hover:bg-indigo-700" type="submit">Enregistrer les notifications</Button>
                 </div>
+                </form>
               </CardContent>
             </Card>
           </TabsContent>
@@ -179,7 +187,9 @@ export default async function SettingsPage() {
                 <CardDescription>Les changements de mot de passe passent par Supabase Auth.</CardDescription>
               </CardHeader>
               <CardContent>
-                <Button variant="outline" type="submit" formAction={requestPasswordReset}>Envoyer un lien de reinitialisation</Button>
+                <form action={requestPasswordReset}>
+                  <Button variant="outline" type="submit">Envoyer un lien de reinitialisation</Button>
+                </form>
               </CardContent>
             </Card>
           </TabsContent>
@@ -195,8 +205,7 @@ export default async function SettingsPage() {
               </CardContent>
             </Card>
           </TabsContent>
-        </Tabs>
-      </form>
+      </Tabs>
     </div>
   )
 }

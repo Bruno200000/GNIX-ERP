@@ -70,7 +70,9 @@ export default async function OrganisationsPage() {
               </div>
             </div>
 
-            <Button render={<Link href="/settings/organisation" />} variant="outline" className="w-full">Modifier le Profil</Button>
+            <Link href="/settings/organisation" className="block">
+              <Button variant="outline" className="w-full">Modifier le Profil</Button>
+            </Link>
           </CardContent>
         </Card>
 
