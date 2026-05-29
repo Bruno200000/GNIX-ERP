@@ -48,11 +48,27 @@ export async function updateSession(request: NextRequest) {
   }
 
   const hasLocalSession = Boolean(request.cookies.get('gnix_demo_user')?.value)
+  const isMobileAccessApi = request.nextUrl.pathname.startsWith('/mobile/access')
+  const isMobileTemporaryAccess = request.nextUrl.pathname === '/mobile'
+    && Boolean(request.nextUrl.searchParams.get('access'))
+    && Date.parse(request.nextUrl.searchParams.get('expires') ?? '') > Date.now()
+
+  if (isMobileTemporaryAccess) {
+    const response = NextResponse.redirect(new URL('/mobile', request.url))
+    response.cookies.set('gnix_demo_user', 'mobile-temporary', {
+      httpOnly: true,
+      sameSite: 'lax',
+      maxAge: 15 * 60,
+      path: '/',
+    })
+    return response
+  }
 
   if (
     !user &&
     !hasLocalSession &&
     !authUnavailable &&
+    !isMobileAccessApi &&
     !request.nextUrl.pathname.startsWith('/login') &&
     !request.nextUrl.pathname.startsWith('/register') &&
     !request.nextUrl.pathname.startsWith('/auth')
