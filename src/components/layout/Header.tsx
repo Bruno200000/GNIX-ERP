@@ -1,7 +1,23 @@
 'use client'
 
 import { useState, useEffect, useRef } from "react"
-import { Bell, User, HelpCircle, LogOut, Settings, Menu, CreditCard, ChevronDown } from "lucide-react"
+import {
+  Bell,
+  User,
+  HelpCircle,
+  LogOut,
+  Settings,
+  Menu,
+  CreditCard,
+  ChevronDown,
+  AlertTriangle,
+  CheckCircle2,
+  Keyboard,
+  LifeBuoy,
+  MessageSquare,
+  Smartphone,
+  Sparkles,
+} from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
 import { useUI } from "@/context/UIContext"
@@ -14,7 +30,12 @@ export function Header() {
   const { toggleSidebar, toggleSidebarCollapse } = useUI()
   const [userProfile, setUserProfile] = useState<any>(null)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [notificationsOpen, setNotificationsOpen] = useState(false)
+  const [helpOpen, setHelpOpen] = useState(false)
+  const [readNotificationIds, setReadNotificationIds] = useState<string[]>([])
   const menuRef = useRef<HTMLDivElement>(null)
+  const notificationsRef = useRef<HTMLDivElement>(null)
+  const helpRef = useRef<HTMLDivElement>(null)
 
   // Fetch user profile on mount
   useEffect(() => {
@@ -71,12 +92,18 @@ export function Header() {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
         setMenuOpen(false)
       }
+      if (notificationsRef.current && !notificationsRef.current.contains(e.target as Node)) {
+        setNotificationsOpen(false)
+      }
+      if (helpRef.current && !helpRef.current.contains(e.target as Node)) {
+        setHelpOpen(false)
+      }
     }
-    if (menuOpen) {
+    if (menuOpen || notificationsOpen || helpOpen) {
       document.addEventListener('mousedown', handleClickOutside)
     }
     return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [menuOpen])
+  }, [menuOpen, notificationsOpen, helpOpen])
 
   const displayName = userProfile?.first_name
     ? `${userProfile.first_name} ${userProfile.last_name || ''}`.trim()
@@ -85,6 +112,33 @@ export function Header() {
   const userEmail = userProfile?.email || ''
   const avatarUrl = userProfile?.avatar_url || null
   const userRole = userProfile?.role || userProfile?.user_metadata?.company_name || 'Utilisateur'
+  const notifications = [
+    {
+      id: "finance",
+      title: "Factures a verifier",
+      description: "Des paiements ou anomalies finance demandent votre attention.",
+      href: "/finance/anomalies",
+      icon: AlertTriangle,
+      tone: "text-amber-600 bg-amber-50",
+    },
+    {
+      id: "chat",
+      title: "Chat interne actif",
+      description: "Votre equipe peut maintenant envoyer messages et pieces jointes.",
+      href: "/chat",
+      icon: MessageSquare,
+      tone: "text-indigo-600 bg-indigo-50",
+    },
+    {
+      id: "settings",
+      title: "Preferences appliquees",
+      description: "Mode sombre, langue et notifications sont synchronises.",
+      href: "/settings",
+      icon: CheckCircle2,
+      tone: "text-emerald-600 bg-emerald-50",
+    },
+  ]
+  const unreadNotifications = notifications.filter((item) => !readNotificationIds.includes(item.id))
 
   return (
     <header className="flex h-16 items-center justify-between border-b border-slate-200 bg-white px-6 dark:border-slate-800 dark:bg-slate-950 transition-colors sticky top-0 z-30 shadow-sm">
@@ -121,14 +175,142 @@ export function Header() {
       <div className="flex items-center space-x-2">
         <MobileAccessDialog />
 
-        <button type="button" className="relative rounded-lg p-2 text-slate-500 hover:bg-slate-50 hover:text-indigo-600 transition-all">
-          <HelpCircle className="h-5 w-5" />
-        </button>
+        <div className="relative" ref={helpRef}>
+          <button
+            type="button"
+            onClick={() => {
+              setHelpOpen((value) => !value)
+              setNotificationsOpen(false)
+              setMenuOpen(false)
+            }}
+            className="relative rounded-lg p-2 text-slate-500 hover:bg-slate-50 hover:text-indigo-600 transition-all"
+            aria-label="Ouvrir l'aide"
+          >
+            <HelpCircle className="h-5 w-5" />
+          </button>
 
-        <button type="button" className="relative rounded-lg p-2 text-slate-500 hover:bg-slate-50 hover:text-indigo-600 transition-all">
-          <Bell className="h-5 w-5" />
-          <span className="absolute top-2 right-2 block h-2 w-2 rounded-full bg-red-500 ring-2 ring-white" />
-        </button>
+          {helpOpen && (
+            <div className="absolute right-0 mt-2 w-80 rounded-2xl border border-slate-100 bg-white shadow-2xl shadow-slate-200/60 z-50 overflow-hidden dark:border-slate-800 dark:bg-slate-900">
+              <div className="border-b border-slate-100 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900/60">
+                <div className="flex items-center gap-2">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600">
+                    <HelpCircle className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <div className="text-sm font-black text-slate-900 dark:text-white">Centre d'aide GNIX</div>
+                    <div className="text-xs text-slate-500">Actions rapides et assistance.</div>
+                  </div>
+                </div>
+              </div>
+              <div className="p-2">
+                {[
+                  { href: "/mobile", title: "Controle telephone", desc: "Piloter l'ERP avec IA GNIX.", icon: Smartphone },
+                  { href: "/chat", title: "Chat interne", desc: "Envoyer messages et pieces jointes.", icon: MessageSquare },
+                  { href: "/settings", title: "Parametres", desc: "Langue, IA, notifications, securite.", icon: Settings },
+                  { href: "/itsm", title: "Support", desc: "Creer ou suivre un ticket d'assistance.", icon: LifeBuoy },
+                ].map((item) => (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    onClick={() => setHelpOpen(false)}
+                    className="flex items-center gap-3 rounded-xl px-3 py-3 text-sm text-slate-700 transition-colors hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800"
+                  >
+                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-500 dark:bg-slate-800">
+                      <item.icon className="h-4 w-4" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="font-bold">{item.title}</div>
+                      <div className="text-xs text-slate-400">{item.desc}</div>
+                    </div>
+                  </Link>
+                ))}
+                <div className="mt-2 rounded-xl bg-indigo-50 p-3 text-xs text-indigo-700 dark:bg-indigo-950/30 dark:text-indigo-200">
+                  <div className="mb-1 flex items-center gap-2 font-black">
+                    <Keyboard className="h-3.5 w-3.5" />
+                    Exemple
+                  </div>
+                  Dans IA GNIX, tapez: "ouvre les stocks" ou "cree un ticket".
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="relative" ref={notificationsRef}>
+          <button
+            type="button"
+            onClick={() => {
+              setNotificationsOpen((value) => !value)
+              setHelpOpen(false)
+              setMenuOpen(false)
+            }}
+            className="relative rounded-lg p-2 text-slate-500 hover:bg-slate-50 hover:text-indigo-600 transition-all"
+            aria-label="Ouvrir les notifications"
+          >
+            <Bell className="h-5 w-5" />
+            {unreadNotifications.length > 0 && (
+              <span className="absolute top-1.5 right-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-black text-white ring-2 ring-white">
+                {unreadNotifications.length}
+              </span>
+            )}
+          </button>
+
+          {notificationsOpen && (
+            <div className="absolute right-0 mt-2 w-96 max-w-[calc(100vw-2rem)] rounded-2xl border border-slate-100 bg-white shadow-2xl shadow-slate-200/60 z-50 overflow-hidden dark:border-slate-800 dark:bg-slate-900">
+              <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900/60">
+                <div>
+                  <div className="text-sm font-black text-slate-900 dark:text-white">Notifications</div>
+                  <div className="text-xs text-slate-500">{unreadNotifications.length} non lue(s)</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setReadNotificationIds(notifications.map((item) => item.id))}
+                  className="rounded-lg px-3 py-1.5 text-xs font-bold text-indigo-600 hover:bg-indigo-50"
+                >
+                  Tout lire
+                </button>
+              </div>
+              <div className="max-h-96 overflow-y-auto p-2">
+                {notifications.map((item) => {
+                  const Icon = item.icon
+                  const isRead = readNotificationIds.includes(item.id)
+                  return (
+                    <Link
+                      key={item.id}
+                      href={item.href}
+                      onClick={() => {
+                        setReadNotificationIds((ids) => ids.includes(item.id) ? ids : [...ids, item.id])
+                        setNotificationsOpen(false)
+                      }}
+                      className="flex items-start gap-3 rounded-xl px-3 py-3 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800"
+                    >
+                      <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${item.tone}`}>
+                        <Icon className="h-5 w-5" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <div className="text-sm font-bold text-slate-900 dark:text-white">{item.title}</div>
+                          {!isRead && <span className="h-2 w-2 rounded-full bg-red-500" />}
+                        </div>
+                        <div className="mt-0.5 text-xs leading-relaxed text-slate-500">{item.description}</div>
+                      </div>
+                    </Link>
+                  )
+                })}
+              </div>
+              <div className="border-t border-slate-100 p-3 dark:border-slate-800">
+                <Link
+                  href="/settings"
+                  onClick={() => setNotificationsOpen(false)}
+                  className="flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-xs font-bold text-white hover:bg-indigo-600"
+                >
+                  <Sparkles className="h-3.5 w-3.5" />
+                  Gerer mes notifications
+                </Link>
+              </div>
+            </div>
+          )}
+        </div>
 
         <div className="h-6 w-px bg-slate-200 dark:bg-slate-800 mx-2" />
 
