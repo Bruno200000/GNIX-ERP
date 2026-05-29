@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState } from "react"
+import { useRef, useState, useTransition } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Send, Smile, Paperclip } from "lucide-react"
@@ -17,15 +17,24 @@ export function ChatMessageComposer({
   const formRef = useRef<HTMLFormElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   const [attachmentName, setAttachmentName] = useState("")
+  const [isPending, startTransition] = useTransition()
+  const [error, setError] = useState("")
 
   async function actionWrapper(formData: FormData) {
-    await action(formData)
-    formRef.current?.reset()
-    setAttachmentName("")
+    setError("")
+    startTransition(async () => {
+      try {
+        await action(formData)
+        formRef.current?.reset()
+        setAttachmentName("")
+      } catch {
+        setError("Le message n'a pas pu etre envoye.")
+      }
+    })
   }
 
   return (
-    <form ref={formRef} action={actionWrapper} className="relative group">
+    <form ref={formRef} action={actionWrapper} className="relative group" encType="multipart/form-data">
       <input type="hidden" name="channel_id" value={channelId} />
       <input
         ref={fileRef}
@@ -42,6 +51,11 @@ export function ChatMessageComposer({
       {attachmentName && (
         <div className="absolute -top-7 left-2 rounded-full bg-indigo-50 px-3 py-1 text-[10px] font-bold text-indigo-600">
           {attachmentName}
+        </div>
+      )}
+      {error && (
+        <div className="absolute -top-7 left-2 rounded-full bg-red-50 px-3 py-1 text-[10px] font-bold text-red-600">
+          {error}
         </div>
       )}
       <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
@@ -69,9 +83,14 @@ export function ChatMessageComposer({
         >
           <Paperclip className="h-5 w-5" />
         </Button>
-        <Button type="submit" size="icon" className="h-8 w-8 bg-indigo-600 hover:bg-indigo-700 text-white shadow-md">
+        <button
+          type="submit"
+          disabled={isPending}
+          className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-600 text-white shadow-md transition-all hover:bg-indigo-700 disabled:opacity-50"
+          aria-label="Envoyer le message"
+        >
           <Send className="h-4 w-4" />
-        </Button>
+        </button>
       </div>
     </form>
   )

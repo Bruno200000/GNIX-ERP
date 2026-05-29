@@ -71,10 +71,10 @@ export function AIChatBubble() {
   }
 
   return (
-    <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end">
+    <div className="fixed bottom-24 right-4 z-50 flex flex-col items-end sm:bottom-6 sm:right-6">
       {/* Chat Window */}
       {isOpen && (
-        <div className="mb-4 w-[350px] h-[480px] bg-white dark:bg-slate-900 rounded-[2rem] shadow-2xl border border-slate-200 dark:border-slate-800 flex flex-col overflow-hidden animate-in slide-in-from-bottom-6 duration-300">
+        <div className="mb-4 h-[min(520px,calc(100vh-9rem))] w-[calc(100vw-2rem)] max-w-[370px] bg-white dark:bg-slate-900 rounded-[2rem] shadow-2xl border border-slate-200 dark:border-slate-800 flex flex-col overflow-hidden animate-in slide-in-from-bottom-6 duration-300">
           {/* Header */}
           <div className="p-4 bg-indigo-600 text-white flex items-center justify-between shadow-lg">
             <div className="flex items-center gap-3">
@@ -175,13 +175,9 @@ export function AIChatBubble() {
         {isOpen ? (
           <X className="h-6 w-6 text-white" />
         ) : (
-          <div className="relative w-full h-full p-1">
-            <Image 
-              src="/logo.png" 
-              alt="GNIX AI" 
-              fill 
-              className="object-contain group-hover:rotate-12 transition-transform" 
-            />
+          <div className="relative flex h-full w-full flex-col items-center justify-center rounded-full bg-indigo-600 text-white">
+            <span className="text-[9px] font-black leading-none">IA</span>
+            <span className="text-[10px] font-black leading-none">GNIX</span>
           </div>
         )}
         {!isOpen && (

@@ -42,6 +42,7 @@ export async function saveOrganization(formData: FormData) {
 export async function saveSettings(formData: FormData) {
   await updateSettingsData(formData)
   revalidatePath('/settings')
+  revalidatePath('/', 'layout')
 }
 
 export async function requestPasswordReset() {

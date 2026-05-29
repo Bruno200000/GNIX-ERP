@@ -1,19 +1,49 @@
 'use client'
 
-import { useState, useRef, useEffect } from "react"
+import { useCallback, useMemo, useState, useRef, useEffect } from "react"
 import { Mic, Zap, Package, Users, Wallet, Sparkles, LayoutDashboard, Search, Bell, Smartphone, Menu, X, ChevronRight, BarChart3, Settings, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { processAICommand } from "@/lib/ai-actions"
 
 export default function MobileRemotePage() {
+  const router = useRouter()
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [isListening, setIsListening] = useState(false)
   const [aiResponse, setAiResponse] = useState<string | null>(null)
   const [isProcessing, setIsProcessing] = useState(false)
+  const [commandText, setCommandText] = useState("")
   const recognitionRef = useRef<any>(null)
+  const commandRoutes = useMemo(() => [
+    { keywords: ["stock", "stocks", "produit", "produits", "logistique"], href: "/logistique" },
+    { keywords: ["client", "clients", "crm", "vente", "ventes"], href: "/crm" },
+    { keywords: ["finance", "facture", "factures", "paiement"], href: "/finance" },
+    { keywords: ["analyse", "rapport", "statistique"], href: "/analytics" },
+    { keywords: ["parametre", "parametres", "profil", "securite"], href: "/settings" },
+    { keywords: ["chat", "message", "communication"], href: "/chat" },
+  ], [])
+
+  const handleVoiceCommand = useCallback(async (command: string) => {
+    setIsListening(false)
+    setIsProcessing(true)
+    setCommandText(command)
+    setAiResponse(`Analyse de : "${command}"...`)
+
+    try {
+      const result = await processAICommand(command)
+      const lowerCommand = command.toLowerCase()
+      const route = commandRoutes.find((item) => item.keywords.some((keyword) => lowerCommand.includes(keyword)))
+      setAiResponse(route ? `${result.message} Ouverture du module demande...` : result.message)
+      if (route) setTimeout(() => router.push(route.href), 500)
+    } catch {
+      setAiResponse("Erreur de connexion avec l'IA.")
+    } finally {
+      setIsProcessing(false)
+    }
+  }, [commandRoutes, router])
 
   useEffect(() => {
     if (typeof window !== 'undefined' && ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
@@ -31,22 +61,7 @@ export default function MobileRemotePage() {
       recognitionRef.current.onerror = () => setIsListening(false)
       recognitionRef.current.onend = () => setIsListening(false)
     }
-  }, [])
-
-  const handleVoiceCommand = async (command: string) => {
-    setIsListening(false)
-    setIsProcessing(true)
-    setAiResponse(`Analyse de : "${command}"...`)
-
-    try {
-      const result = await processAICommand(command)
-      setAiResponse(result.message)
-    } catch (error) {
-      setAiResponse("Erreur de connexion avec l'IA.")
-    } finally {
-      setIsProcessing(false)
-    }
-  }
+  }, [handleVoiceCommand])
 
   const toggleListening = () => {
     if (isListening) {
@@ -140,7 +155,7 @@ export default function MobileRemotePage() {
       </header>
 
       {/* Scrollable Content */}
-      <div className="flex-1 overflow-y-auto px-6 pt-6 pb-32 space-y-8 scroll-smooth">
+      <div className="flex-1 overflow-y-auto px-4 sm:px-6 pt-6 pb-32 space-y-8 scroll-smooth">
         {/* Profile Card */}
         <div className="bg-gradient-to-br from-indigo-600 to-indigo-800 rounded-[2.5rem] p-8 shadow-2xl shadow-indigo-500/20 relative overflow-hidden">
           <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16 blur-2xl" />
@@ -182,7 +197,7 @@ export default function MobileRemotePage() {
               onClick={toggleListening}
               disabled={isProcessing}
               className={cn(
-                "relative w-44 h-44 rounded-full flex flex-col items-center justify-center transition-all duration-700 active:scale-90 shadow-2xl",
+                "relative h-44 w-44 sm:h-52 sm:w-52 rounded-full flex flex-col items-center justify-center transition-all duration-700 active:scale-90 shadow-2xl",
                 isListening 
                   ? "bg-red-500 shadow-red-500/40 ring-[16px] ring-red-500/10" 
                   : isProcessing
@@ -194,17 +209,39 @@ export default function MobileRemotePage() {
                 <div className="absolute inset-0 rounded-full border-4 border-white/40 animate-ping" />
               )}
               {isProcessing ? (
-                <Loader2 className="h-16 w-16 text-white animate-spin" />
+                <Loader2 className="h-12 w-12 text-white animate-spin mb-3" />
               ) : (
-                <Mic className="h-16 w-16 text-white mb-2" />
+                <Mic className="h-12 w-12 text-white mb-3" />
               )}
-              <span className="text-[10px] font-black uppercase tracking-widest text-white/80">
+              <span className="text-sm font-black uppercase tracking-widest text-white">IA GNIX</span>
+              <span className="mt-1 text-[10px] font-black uppercase tracking-widest text-white/80">
                 {isListening ? "Écoute..." : isProcessing ? "Analyse..." : "Parler à l'IA"}
               </span>
             </button>
-            
+            <form
+              className="mt-8 flex w-full max-w-sm gap-2"
+              onSubmit={(event) => {
+                event.preventDefault()
+                if (commandText.trim()) handleVoiceCommand(commandText)
+              }}
+            >
+              <input
+                value={commandText}
+                onChange={(event) => setCommandText(event.target.value)}
+                placeholder="Ex: ouvre les stocks"
+                className="h-12 min-w-0 flex-1 rounded-2xl border border-white/10 bg-white/5 px-4 text-sm text-white outline-none placeholder:text-slate-500 focus:ring-2 focus:ring-indigo-500"
+              />
+              <button
+                type="submit"
+                disabled={isProcessing || !commandText.trim()}
+                className="h-12 rounded-2xl bg-indigo-600 px-5 text-xs font-black uppercase tracking-widest text-white disabled:opacity-50"
+              >
+                Executer
+              </button>
+            </form>
+             
             {aiResponse && (
-              <div className="mt-8 p-6 bg-indigo-500/10 border border-indigo-500/20 rounded-3xl animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <div className="mt-6 w-full max-w-sm p-5 sm:p-6 bg-indigo-500/10 border border-indigo-500/20 rounded-3xl animate-in fade-in slide-in-from-bottom-4 duration-500">
                 <p className="text-sm font-medium text-indigo-200 text-center leading-relaxed italic">
                   "{aiResponse}"
                 </p>
@@ -234,7 +271,7 @@ export default function MobileRemotePage() {
       </div>
 
       {/* Bottom Nav Bar - iOS Style */}
-      <div className="fixed bottom-0 left-0 right-0 h-24 bg-black/80 backdrop-blur-3xl border-t border-white/10 px-8 flex items-center justify-around z-[90]">
+      <div className="fixed bottom-0 left-0 right-0 h-24 bg-black/80 backdrop-blur-3xl border-t border-white/10 px-4 sm:px-8 flex items-center justify-around z-[90]">
         <Link href="/" className="flex flex-col items-center gap-1.5 text-indigo-500">
           <LayoutDashboard className="h-6 w-6" />
           <span className="text-[9px] font-black uppercase">Home</span>
@@ -244,8 +281,9 @@ export default function MobileRemotePage() {
           <span className="text-[9px] font-black uppercase">Search</span>
         </Link>
         <div className="-mt-16 bg-[#050505] p-3 rounded-full border border-white/10 shadow-2xl">
-           <button onClick={toggleListening} className="h-14 w-14 bg-indigo-600 rounded-full flex items-center justify-center shadow-lg shadow-indigo-500/40 active:scale-90 transition-transform">
-             <Mic className="h-7 w-7 text-white" />
+           <button onClick={toggleListening} className="h-16 w-16 bg-indigo-600 rounded-full flex flex-col items-center justify-center shadow-lg shadow-indigo-500/40 active:scale-90 transition-transform">
+             <span className="text-[9px] font-black leading-none text-white">IA</span>
+             <span className="text-[10px] font-black leading-none text-white">GNIX</span>
            </button>
         </div>
         <Link href="/notifications" className="flex flex-col items-center gap-1.5 text-slate-500">
