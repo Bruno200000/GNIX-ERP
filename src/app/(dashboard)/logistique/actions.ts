@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import {
+  createShipmentData,
   createDeliveryNoteData,
   createProductData,
   createStockEntryData,
@@ -95,4 +96,9 @@ export async function createDeliveryNote(formData: FormData, items: DeliveryItem
 export async function addPurchaseOrder(formData: FormData) {
   await createPurchaseOrderData(formData)
   revalidatePath('/logistique')
+}
+
+export async function addShipment(formData: FormData) {
+  await createShipmentData(formData)
+  revalidatePath('/logistique/shipments')
 }

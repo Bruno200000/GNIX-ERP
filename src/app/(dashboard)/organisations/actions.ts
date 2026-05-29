@@ -2,7 +2,9 @@
 
 import { revalidatePath } from 'next/cache'
 import {
+  approveOrganizationMemberData,
   getOrganizationData,
+  inviteOrganizationMemberData,
   updateOrganizationData,
   type JsonValue,
   type ProfileRecord,
@@ -27,4 +29,14 @@ export async function updateOrganization(formData: FormData) {
   await updateOrganizationData(formData)
   revalidatePath('/organisations')
   revalidatePath('/settings/organisation')
+}
+
+export async function inviteOrganizationMember(formData: FormData) {
+  await inviteOrganizationMemberData(formData)
+  revalidatePath('/organisations')
+}
+
+export async function approveOrganizationMember(formData: FormData) {
+  await approveOrganizationMemberData(formData)
+  revalidatePath('/organisations')
 }

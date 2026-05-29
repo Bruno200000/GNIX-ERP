@@ -40,14 +40,36 @@ export function ConnectAppDialog({
             <Key className="h-6 w-6 text-indigo-600" />
           </div>
           <DialogTitle className="text-xl font-black text-slate-900">Connecter {appName}</DialogTitle>
-          <DialogDescription>Entrez la cle API de l'application pour autoriser l'acces.</DialogDescription>
+          <DialogDescription>Entrez les identifiants API pour autoriser l'acces backend.</DialogDescription>
         </DialogHeader>
 
         <form action={actionWrapper} className="space-y-4 py-4">
-          <div className="space-y-2">
-            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Cle API (API Key)</label>
-            <Input name="api_key" type="password" required placeholder="sk_live_..." className="rounded-xl font-mono" />
-          </div>
+          {appId === "catalog-whatsapp" ? (
+            <>
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Token WhatsApp Business</label>
+                <Input name="whatsapp_api_key" type="password" required placeholder="EAAB..." className="rounded-xl font-mono" />
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Phone Number ID</label>
+                <Input name="whatsapp_phone_number_id" required placeholder="1234567890" className="rounded-xl font-mono" />
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Business Account ID</label>
+                <Input name="whatsapp_business_account_id" required placeholder="9876543210" className="rounded-xl font-mono" />
+              </div>
+            </>
+          ) : appId === "catalog-openai" ? (
+            <div className="space-y-2">
+              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Cle API OpenAI</label>
+              <Input name="openai_api_key" type="password" required placeholder="sk-..." className="rounded-xl font-mono" />
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Cle API (API Key)</label>
+              <Input name="api_key" type="password" required placeholder="sk_live_..." className="rounded-xl font-mono" />
+            </div>
+          )}
 
           <DialogFooter className="pt-4">
             <Button type="button" variant="outline" className="rounded-xl" onClick={() => setOpen(false)}>Annuler</Button>

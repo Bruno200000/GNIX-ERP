@@ -12,6 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { MoreHorizontal, Users, Fingerprint } from "lucide-react"
 import { AddEmployeeDialog } from "@/components/rh/AddEmployeeDialog"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 
 export default async function RHPage() {
   const employees = await getEmployees()
@@ -63,7 +64,15 @@ export default async function RHPage() {
                   {employees.map((emp) => (
                     <TableRow key={emp.id}>
                       <TableCell className="font-medium">
-                        {emp.first_name} {emp.last_name}
+                        <div className="flex items-center gap-3">
+                          <Avatar>
+                            <AvatarImage src={emp.avatar_url || undefined} />
+                            <AvatarFallback className="bg-indigo-100 text-indigo-700">
+                              {emp.first_name?.[0]}{emp.last_name?.[0]}
+                            </AvatarFallback>
+                          </Avatar>
+                          {emp.first_name} {emp.last_name}
+                        </div>
                       </TableCell>
                       <TableCell>{emp.department || 'Non défini'}</TableCell>
                       <TableCell>{emp.position || 'Non défini'}</TableCell>

@@ -14,7 +14,8 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Plus, User, Camera } from "lucide-react"
+import { PhotoFileInput } from "@/components/ui/PhotoFileInput"
+import { Plus } from "lucide-react"
 
 function SubmitButton() {
   const { pending } = useFormStatus()
@@ -57,14 +58,7 @@ export function AddEmployeeDialog() {
         </DialogHeader>
         <form action={actionWrapper} className="space-y-4 pt-4">
           <div className="flex justify-center pb-4">
-             <div className="relative group cursor-pointer">
-                <div className="h-20 w-20 rounded-full bg-slate-100 flex items-center justify-center border-2 border-dashed border-slate-200 group-hover:border-indigo-500 transition-colors">
-                   <Camera className="h-8 w-8 text-slate-300 group-hover:text-indigo-500" />
-                </div>
-                <div className="absolute -bottom-1 -right-1 h-6 w-6 bg-indigo-600 rounded-full flex items-center justify-center border-2 border-white">
-                   <Plus className="h-3 w-3 text-white" />
-                </div>
-             </div>
+            <PhotoFileInput name="avatar" label="Photo" shape="rounded-full" />
           </div>
 
           <div className="grid grid-cols-2 gap-4">

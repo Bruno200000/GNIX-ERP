@@ -3,24 +3,38 @@
 import { useState } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger, DialogFooter } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
+import { Switch } from "@/components/ui/switch"
 import { Sparkles, Bot, Save } from "lucide-react"
 
-export function AutoResponseDialog({ trigger }: { trigger: React.ReactElement }) {
+export function AutoResponseDialog({
+  trigger,
+  settings,
+  action,
+}: {
+  trigger: React.ReactElement
+  settings?: {
+    auto_response_enabled?: boolean
+    auto_response_prompt?: string
+  } | null
+  action: (formData: FormData) => Promise<void>
+}) {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState(false)
 
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault()
+  async function handleSubmit(formData: FormData) {
     setLoading(true)
-    setTimeout(() => {
+    try {
+      await action(formData)
       setLoading(false)
       setSuccess(true)
       setTimeout(() => {
         setOpen(false)
         setTimeout(() => setSuccess(false), 300)
       }, 1500)
-    }, 1000)
+    } catch {
+      setLoading(false)
+    }
   }
 
   return (
@@ -43,12 +57,20 @@ export function AutoResponseDialog({ trigger }: { trigger: React.ReactElement })
             <p className="font-bold">Configuration sauvegardee !</p>
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="space-y-4 py-4">
+          <form action={handleSubmit} className="space-y-4 py-4">
+            <div className="flex items-center justify-between rounded-xl border border-slate-100 p-3">
+              <div>
+                <div className="text-sm font-bold text-slate-900">Activer les reponses automatiques</div>
+                <div className="text-xs text-slate-500">L'IA preparera les reponses sur les messages entrants.</div>
+              </div>
+              <Switch name="auto_response_enabled" defaultChecked={settings?.auto_response_enabled ?? false} />
+            </div>
             <div className="space-y-2">
               <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Instructions pour l'IA (Prompt)</label>
               <textarea 
+                name="auto_response_prompt"
                 required 
-                defaultValue="Repondre de maniere professionnelle. Si la demande concerne les prix, renvoyer vers la grille tarifaire. Sinon, preparer un brouillon d'information."
+                defaultValue={settings?.auto_response_prompt || "Repondre de maniere professionnelle. Si la demande concerne les prix, renvoyer vers la grille tarifaire. Sinon, preparer un brouillon d'information."}
                 className="flex min-h-[80px] w-full rounded-xl border border-slate-200 bg-transparent px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-600 resize-none h-32" 
               />
             </div>

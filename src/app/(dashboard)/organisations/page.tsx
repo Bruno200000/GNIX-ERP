@@ -1,4 +1,6 @@
-import { getOrganizationDetails } from "./actions"
+import Link from "next/link"
+import { approveOrganizationMember, getOrganizationDetails, inviteOrganizationMember } from "./actions"
+import { InviteMemberDialog } from "@/components/organisations/InviteMemberDialog"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -68,7 +70,7 @@ export default async function OrganisationsPage() {
               </div>
             </div>
 
-            <Button variant="outline" className="w-full">Modifier le Profil</Button>
+            <Button render={<Link href="/settings/organisation" />} variant="outline" className="w-full">Modifier le Profil</Button>
           </CardContent>
         </Card>
 
@@ -78,7 +80,10 @@ export default async function OrganisationsPage() {
               <CardTitle>Équipe & Membres</CardTitle>
               <CardDescription>Gérez les accès et les rôles de vos collaborateurs.</CardDescription>
             </div>
-            <Button size="sm" className="bg-indigo-600 hover:bg-indigo-700">Inviter</Button>
+            <InviteMemberDialog
+              action={inviteOrganizationMember}
+              trigger={<Button size="sm" className="bg-indigo-600 hover:bg-indigo-700">Inviter</Button>}
+            />
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
@@ -95,17 +100,27 @@ export default async function OrganisationsPage() {
                       <div className="font-medium">{member.first_name} {member.last_name}</div>
                       <div className="text-xs text-slate-500 flex items-center gap-1">
                         <Mail className="h-3 w-3" />
-                        Utilisateur Actif
+                        {member.email}
                       </div>
                     </div>
                   </div>
                   <div className="flex items-center gap-4">
                     <Badge variant={member.is_active ? "outline" : "secondary"}>
-                      {member.is_active ? "Actif" : "Inactif"}
+                      {member.is_active ? "Actif" : "En attente"}
                     </Badge>
-                    <Button variant="ghost" size="icon" className="h-8 w-8">
-                      <Shield className="h-4 w-4 text-slate-400" />
-                    </Button>
+                    <Badge variant="secondary">
+                      {member.role || "Utilisateur"}
+                    </Badge>
+                    {member.is_active ? (
+                      <Button variant="ghost" size="icon" className="h-8 w-8" title="Acces valide">
+                        <Shield className="h-4 w-4 text-emerald-500" />
+                      </Button>
+                    ) : (
+                      <form action={approveOrganizationMember}>
+                        <input type="hidden" name="member_id" value={member.id} />
+                        <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white">Valider</Button>
+                      </form>
+                    )}
                   </div>
                 </div>
               ))}

@@ -14,7 +14,8 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Plus, Camera } from "lucide-react"
+import { PhotoFileInput } from "@/components/ui/PhotoFileInput"
+import { Plus } from "lucide-react"
 
 function SubmitButton() {
   const { pending } = useFormStatus()
@@ -57,10 +58,7 @@ export function AddProductDialog() {
         </DialogHeader>
         <form action={actionWrapper} className="space-y-4 pt-4">
           <div className="flex justify-center pb-4">
-             <div className="h-24 w-24 rounded-2xl bg-slate-50 border-2 border-dashed border-slate-200 flex flex-col items-center justify-center gap-1 hover:border-indigo-400 transition-colors cursor-pointer group">
-                <Camera className="h-8 w-8 text-slate-300 group-hover:text-indigo-400" />
-                <span className="text-[10px] font-bold text-slate-400 uppercase">Photo</span>
-             </div>
+            <PhotoFileInput name="product_photo" label="Photo" />
           </div>
 
           <div className="space-y-2">

@@ -1,5 +1,7 @@
-import { getIntegrationsData, toggleIntegrationData } from "@/lib/erp-data"
+import { getAppSettings } from "@/app/(dashboard)/settings/actions"
+import { getIntegrationsData, toggleIntegrationData, updateApiSettingsData, updateIntegrationCredentialsData } from "@/lib/erp-data"
 import { revalidatePath } from "next/cache"
+import { ApiSettingsDialog } from "@/components/integrations/ApiSettingsDialog"
 import { ConnectAppDialog } from "@/components/integrations/ConnectAppDialog"
 import { ProposeIntegrationDialog } from "@/components/integrations/ProposeIntegrationDialog"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -24,6 +26,22 @@ async function toggleIntegration(formData: FormData) {
   "use server"
   await toggleIntegrationData(formData)
   revalidatePath("/integrations")
+  revalidatePath("/communication")
+}
+
+async function connectIntegration(formData: FormData) {
+  "use server"
+  await updateIntegrationCredentialsData(formData)
+  revalidatePath("/integrations")
+  revalidatePath("/communication")
+}
+
+async function saveApiSettings(formData: FormData) {
+  "use server"
+  await updateApiSettingsData(formData)
+  revalidatePath("/integrations")
+  revalidatePath("/communication")
+  revalidatePath("/settings")
 }
 
 const icons = {
@@ -39,7 +57,7 @@ const icons = {
 }
 
 export default async function IntegrationsPage() {
-  const apps = await getIntegrationsData()
+  const [apps, settings] = await Promise.all([getIntegrationsData(), getAppSettings()])
 
   return (
     <div className="space-y-6">
@@ -48,9 +66,15 @@ export default async function IntegrationsPage() {
           <h1 className="text-3xl font-bold tracking-tight">App Marketplace</h1>
           <p className="text-sm text-slate-500">Connectez GNIX IA a vos outils preferes pour un ERP sans limites.</p>
         </div>
-        <Button variant="outline" className="gap-2">
-          <Settings2 className="h-4 w-4" /> Parametres API
-        </Button>
+        <ApiSettingsDialog
+          settings={settings}
+          action={saveApiSettings}
+          trigger={
+            <Button variant="outline" className="gap-2">
+              <Settings2 className="h-4 w-4" /> Parametres API
+            </Button>
+          }
+        />
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
@@ -92,7 +116,7 @@ export default async function IntegrationsPage() {
                   <ConnectAppDialog
                     appId={app.id}
                     appName={app.name}
-                    action={toggleIntegration}
+                    action={app.id === "catalog-whatsapp" || app.id === "catalog-openai" ? connectIntegration : toggleIntegration}
                     trigger={
                       <Button 
                         type="button"
@@ -128,8 +152,14 @@ export default async function IntegrationsPage() {
             Connectez votre propre site web ou application metier directement a GNIX IA. Recevez des notifications temps reel via nos webhooks securises.
           </p>
           <div className="flex gap-4">
-            <Button className="bg-white text-indigo-900 hover:bg-indigo-50 font-bold px-8 h-12 rounded-xl">Documentation API</Button>
-            <Button variant="ghost" className="text-white hover:bg-white/10 font-bold px-8 h-12 rounded-xl">Gerer mes cles API</Button>
+            <Button render={<a href="https://developers.facebook.com/docs/whatsapp" target="_blank" rel="noreferrer" />} className="bg-white text-indigo-900 hover:bg-indigo-50 font-bold px-8 h-12 rounded-xl">Documentation API</Button>
+            <ApiSettingsDialog
+              settings={settings}
+              action={saveApiSettings}
+              trigger={
+                <Button variant="ghost" className="text-white hover:bg-white/10 font-bold px-8 h-12 rounded-xl">Gerer mes cles API</Button>
+              }
+            />
           </div>
         </div>
         <div className="absolute right-0 top-0 bottom-0 w-1/3 bg-gradient-to-l from-indigo-800 to-transparent flex items-center justify-center opacity-50">

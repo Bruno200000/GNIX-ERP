@@ -1,15 +1,19 @@
-import { getAttendance, getEmployees } from "../actions"
+import { configureTerminals, getAttendance, getEmployees } from "../actions"
+import { getAppSettings } from "../../settings/actions"
+import { TerminalConfigDialog } from "@/components/rh/TerminalConfigDialog"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Fingerprint, MapPin, AlertCircle, CheckCircle2, User, RefreshCw, Smartphone } from "lucide-react"
 
 export default async function RHAttendance() {
-  const [attendances, employees] = await Promise.all([getAttendance(), getEmployees()])
+  const [attendances, employees, settings] = await Promise.all([getAttendance(), getEmployees(), getAppSettings()])
   const present = attendances.length
   const totalEmployees = Math.max(employees.length, present)
   const late = attendances.filter((attendance) => attendance.status === "late").length
   const presenceRate = totalEmployees ? Math.round((present / totalEmployees) * 100) : 0
+  const terminalTotal = settings?.terminal_total ?? 15
+  const terminalActive = settings?.terminal_active ?? 14
 
   return (
     <div className="space-y-6">
@@ -24,9 +28,7 @@ export default async function RHAttendance() {
           <Button variant="outline" className="gap-2">
             <RefreshCw className="h-4 w-4" /> Rafraichir
           </Button>
-          <Button className="bg-indigo-600 hover:bg-indigo-700 text-white gap-2">
-            <Fingerprint className="h-4 w-4" /> Configurer Terminaux
-          </Button>
+          <TerminalConfigDialog settings={settings} action={configureTerminals} />
         </div>
       </div>
 
@@ -62,10 +64,10 @@ export default async function RHAttendance() {
             <CardTitle className="text-xs font-bold text-slate-500 uppercase tracking-widest">Terminaux IoT Actifs</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-black text-emerald-500">14 / 15</div>
+            <div className="text-3xl font-black text-emerald-500">{terminalActive} / {terminalTotal}</div>
             <div className="mt-2 flex items-center gap-1">
               <CheckCircle2 className="h-3 w-3 text-emerald-500" />
-              <span className="text-[10px] text-emerald-500 font-bold">Systeme operationnel</span>
+              <span className="text-[10px] text-emerald-500 font-bold">{settings?.terminal_mode || "Systeme operationnel"}</span>
             </div>
           </CardContent>
         </Card>

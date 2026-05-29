@@ -156,6 +156,7 @@ export type ShipmentRecord = BaseRecord & {
   destination: string
   eta: string
   confidence: number
+  package_photo_url?: string | null
 }
 
 export type EmployeeRecord = BaseRecord & {
@@ -291,6 +292,17 @@ export type AppSettingsRecord = BaseRecord & {
   auto_translate: boolean
   ai_provider: string
   ai_api_key?: string
+  openai_api_key?: string
+  whatsapp_api_key?: string
+  whatsapp_phone_number_id?: string
+  whatsapp_business_account_id?: string
+  auto_response_enabled?: boolean
+  auto_response_prompt?: string
+  two_factor_enabled?: boolean
+  terminal_total?: number
+  terminal_active?: number
+  terminal_mode?: string
+  terminal_location?: string
   ai_email_analysis: boolean
   notifications: Record<string, boolean>
 }
@@ -336,6 +348,8 @@ type DbContext = {
   orgId: string
   orgName: string
   email: string
+  isActive: boolean
+  role: string
   isSupabaseWorkspaceReady: boolean
 }
 
@@ -387,11 +401,31 @@ function applyIntegrationOverrides(apps: IntegrationRecord[], overrides: Integra
   }))
 }
 
+function hasSecret(value: unknown) {
+  return typeof value === "string" && value.trim().length > 0
+}
+
+function hasWhatsappCredentials(settings?: Partial<AppSettingsRecord> | null) {
+  return Boolean(
+    settings &&
+      hasSecret(settings.whatsapp_api_key) &&
+      hasSecret(settings.whatsapp_phone_number_id) &&
+      hasSecret(settings.whatsapp_business_account_id),
+  )
+}
+
+function hasOpenAiCredentials(settings?: Partial<AppSettingsRecord> | null) {
+  return Boolean(settings && hasSecret(settings.openai_api_key || settings.ai_api_key))
+}
+
 function mergeIntegrationCatalog(
   dbRows: IntegrationRecord[] | null,
   overrides: IntegrationStatusMap,
   ctx: DbContext,
+  settings?: Partial<AppSettingsRecord> | null,
 ): IntegrationRecord[] {
+  const whatsappStatus = hasWhatsappCredentials(settings) ? "connected" : "available"
+  const openAiStatus = hasOpenAiCredentials(settings) ? "connected" : "available"
   const defaults: IntegrationRecord[] = [
     {
       id: "catalog-openai",
@@ -399,7 +433,7 @@ function mergeIntegrationCatalog(
       name: "OpenAI (ChatGPT)",
       description: "Automatisez vos reponses clients et la classification des donnees par IA.",
       category: "Intelligence Artificielle",
-      status: "connected",
+      status: openAiStatus,
       icon: "Cpu",
       color: "bg-amber-500",
       created_at: nowIso(),
@@ -410,7 +444,7 @@ function mergeIntegrationCatalog(
       name: "WhatsApp Business",
       description: "Centralisez vos echanges clients et analysez les besoins via IA.",
       category: "Communication",
-      status: "connected",
+      status: whatsappStatus,
       icon: "MessageCircle",
       color: "bg-green-500",
       created_at: nowIso(),
@@ -502,6 +536,16 @@ export function formText(formData: FormData, key: string, fallback = "") {
 export function formNumber(formData: FormData, key: string, fallback = 0) {
   const value = Number(formData.get(key))
   return Number.isFinite(value) ? value : fallback
+}
+
+async function formImageDataUrl(formData: FormData, key: string) {
+  const value = formData.get(key)
+  if (!(value instanceof File) || value.size === 0) return null
+  if (!value.type.startsWith("image/")) throw new Error("Le fichier doit etre une image.")
+  if (value.size > 2 * 1024 * 1024) throw new Error("L'image ne doit pas depasser 2 Mo.")
+
+  const buffer = Buffer.from(await value.arrayBuffer())
+  return `data:${value.type};base64,${buffer.toString("base64")}`
 }
 
 function emptyStore(): ErpStore {
@@ -1222,6 +1266,17 @@ function seedWorkspace(orgId: string, userId: string, email: string, orgName: st
     dark_mode: false,
     auto_translate: true,
     ai_provider: "gemini",
+    openai_api_key: "",
+    whatsapp_api_key: "",
+    whatsapp_phone_number_id: "",
+    whatsapp_business_account_id: "",
+    auto_response_enabled: false,
+    auto_response_prompt: "Repondre de maniere professionnelle. Si la demande concerne les prix, renvoyer vers la grille tarifaire. Sinon, preparer un brouillon d'information.",
+    two_factor_enabled: false,
+    terminal_total: 15,
+    terminal_active: 14,
+    terminal_mode: "Biometrie + GPS",
+    terminal_location: "Siege principal",
     ai_email_analysis: true,
     notifications: {
       crm_email: true,
@@ -1334,6 +1389,8 @@ async function getDbContext(): Promise<DbContext> {
       orgId: fallbackOrgId,
       orgName: "GNIX IA SARL",
       email: fallbackEmail,
+      isActive: true,
+      role: "Administrateur",
       isSupabaseWorkspaceReady: false,
     }
   }
@@ -1369,6 +1426,8 @@ async function getDbContext(): Promise<DbContext> {
       orgId: resolvedOrgId,
       orgName: companyName,
       email,
+      isActive: true,
+      role: "Administrateur",
       isSupabaseWorkspaceReady: false,
     }
   }
@@ -1376,14 +1435,15 @@ async function getDbContext(): Promise<DbContext> {
   try {
     const { data: profile } = await supabase
       .from("profiles")
-      .select("organization_id, first_name, last_name, email")
+      .select("organization_id, first_name, last_name, email, role, is_active")
       .eq("id", user.id)
       .maybeSingle()
 
     const profileOrgId =
       profile && typeof profile.organization_id === "string" ? profile.organization_id : null
 
-    if (profileOrgId) {
+    if (profileOrgId && profile) {
+      const existingProfile = profile as { role?: unknown; is_active?: unknown }
       return {
         supabase,
         user,
@@ -1391,6 +1451,42 @@ async function getDbContext(): Promise<DbContext> {
         orgId: profileOrgId,
         orgName: companyName,
         email,
+        isActive: existingProfile.is_active !== false,
+        role: typeof existingProfile.role === "string" ? existingProfile.role : "Utilisateur",
+        isSupabaseWorkspaceReady: true,
+      }
+    }
+
+    const emailDomain = email.includes("@") ? email.split("@")[1] : null
+    const { data: existingOrganization } = emailDomain
+      ? await supabase.from("organizations").select("*").eq("domain", emailDomain).maybeSingle()
+      : { data: null }
+
+    if (existingOrganization && typeof existingOrganization.id === "string") {
+      const pendingProfile: ProfileRecord = {
+        id: user.id,
+        organization_id: existingOrganization.id,
+        first_name: metadataText(user, "first_name", "Utilisateur"),
+        last_name: metadataText(user, "last_name", ""),
+        email,
+        avatar_url: null,
+        role: "Collaborateur",
+        is_active: false,
+        created_at: nowIso(),
+      }
+
+      const { error: pendingProfileError } = await supabase.from("profiles").upsert([pendingProfile])
+      if (pendingProfileError) throw pendingProfileError
+
+      return {
+        supabase,
+        user,
+        userId,
+        orgId: existingOrganization.id,
+        orgName: typeof existingOrganization.name === "string" ? existingOrganization.name : companyName,
+        email,
+        isActive: false,
+        role: "Collaborateur",
         isSupabaseWorkspaceReady: true,
       }
     }
@@ -1399,7 +1495,7 @@ async function getDbContext(): Promise<DbContext> {
     const organization: OrganizationRecord = {
       id: orgId,
       name: companyName,
-      domain: email.includes("@") ? email.split("@")[1] : null,
+      domain: emailDomain,
       settings: {},
       created_at: nowIso(),
     }
@@ -1429,6 +1525,8 @@ async function getDbContext(): Promise<DbContext> {
       orgId,
       orgName: companyName,
       email,
+      isActive: true,
+      role: "Administrateur",
       isSupabaseWorkspaceReady: true,
     }
   } catch {
@@ -1439,6 +1537,8 @@ async function getDbContext(): Promise<DbContext> {
       orgId: resolvedOrgId,
       orgName: companyName,
       email,
+      isActive: true,
+      role: "Administrateur",
       isSupabaseWorkspaceReady: false,
     }
   }
@@ -1764,12 +1864,14 @@ export async function getProductsData() {
 
 export async function createProductData(formData: FormData) {
   const ctx = await getDbContext()
+  const imageUrl = await formImageDataUrl(formData, "product_photo")
   const record: ProductRecord = {
     id: id("product"),
     organization_id: ctx.orgId,
     name: formText(formData, "name", "Produit sans nom"),
     sku: formText(formData, "sku", quoteNumber("SKU")),
     price: formNumber(formData, "price"),
+    image_url: imageUrl || undefined,
     created_at: nowIso(),
   }
 
@@ -2024,6 +2126,32 @@ export async function getShipmentsData() {
     ?? (await localRows(ctx, "shipments"))
 }
 
+export async function createShipmentData(formData: FormData) {
+  const ctx = await getDbContext()
+  const photoUrl = await formImageDataUrl(formData, "package_photo")
+  const record: ShipmentRecord = {
+    id: id("shipment"),
+    organization_id: ctx.orgId,
+    tracking_number: formText(formData, "tracking_number", quoteNumber("GNX")),
+    carrier: formText(formData, "carrier", "GNIX Fleet"),
+    status: formText(formData, "status", "pending"),
+    origin: formText(formData, "origin", "Entrepot principal"),
+    destination: formText(formData, "destination"),
+    eta: formText(formData, "eta", addDaysIso(2)),
+    confidence: formNumber(formData, "confidence", 95),
+    package_photo_url: photoUrl,
+    created_at: nowIso(),
+  }
+
+  if (!record.destination) throw new Error("La destination est obligatoire.")
+
+  if (!(await insertSupabaseRow(ctx, "shipments", record))) {
+    await mutateStore(ctx, (store) => store.shipments.unshift(record))
+  }
+
+  await logAudit(ctx, "Creation colis", record.tracking_number)
+}
+
 export async function getEmployeesData() {
   const ctx = await getDbContext()
   return (await selectSupabaseRows<EmployeeRecord>(ctx, "employees", "created_at", true))
@@ -2032,6 +2160,7 @@ export async function getEmployeesData() {
 
 export async function createEmployeeData(formData: FormData) {
   const ctx = await getDbContext()
+  const avatarUrl = await formImageDataUrl(formData, "avatar")
   const firstName = formText(formData, "first_name")
   const lastName = formText(formData, "last_name")
   const record: EmployeeRecord = {
@@ -2045,7 +2174,7 @@ export async function createEmployeeData(formData: FormData) {
     contract_type: formText(formData, "contract_type", "CDI"),
     salary: formNumber(formData, "salary"),
     hire_date: todayIso(),
-    avatar_url: null,
+    avatar_url: avatarUrl,
     created_at: nowIso(),
   }
 
@@ -2294,13 +2423,27 @@ export async function getAssetsData() {
 export async function getIntegrationsData() {
   const ctx = await getDbContext()
   const overrides = await readIntegrationOverrides()
+  const settings = await getSettingsData()
   const dbRows = await selectSupabaseRows<IntegrationRecord>(ctx, "integrations", "created_at", true)
-  return mergeIntegrationCatalog(dbRows, overrides, ctx)
+  const effectiveOverrides = { ...overrides }
+
+  if (!hasWhatsappCredentials(settings)) {
+    delete effectiveOverrides["catalog-whatsapp"]
+  }
+
+  if (!hasOpenAiCredentials(settings)) {
+    delete effectiveOverrides["catalog-openai"]
+  }
+
+  return mergeIntegrationCatalog(dbRows, effectiveOverrides, ctx, settings)
 }
 
 export async function toggleIntegrationData(formData: FormData) {
   const ctx = await getDbContext()
   const integrationId = formText(formData, "integration_id")
+  const settings = await getSettingsData()
+  if (integrationId === "catalog-whatsapp" && !hasWhatsappCredentials(settings)) return
+  if (integrationId === "catalog-openai" && !hasOpenAiCredentials(settings)) return
   const integrations = await getIntegrationsData()
   const integration = integrations.find((item) => item.id === integrationId)
   if (!integration) return
@@ -2319,6 +2462,125 @@ export async function toggleIntegrationData(formData: FormData) {
   }
 
   await logAudit(ctx, status === "connected" ? "Integration connectee" : "Integration desactivee", integration.name)
+}
+
+export async function updateIntegrationCredentialsData(formData: FormData) {
+  const ctx = await getDbContext()
+  const settings = await getSettingsData()
+  if (!settings) return
+
+  const integrationId = formText(formData, "integration_id")
+  const patch: Partial<AppSettingsRecord> = {}
+
+  if (integrationId === "catalog-whatsapp") {
+    patch.whatsapp_api_key = formText(formData, "whatsapp_api_key", settings.whatsapp_api_key)
+    patch.whatsapp_phone_number_id = formText(formData, "whatsapp_phone_number_id", settings.whatsapp_phone_number_id)
+    patch.whatsapp_business_account_id = formText(
+      formData,
+      "whatsapp_business_account_id",
+      settings.whatsapp_business_account_id,
+    )
+  }
+
+  if (integrationId === "catalog-openai") {
+    patch.openai_api_key = formText(formData, "openai_api_key", settings.openai_api_key || settings.ai_api_key)
+    patch.ai_provider = "openai"
+    patch.ai_api_key = patch.openai_api_key
+  }
+
+  if (!Object.keys(patch).length) return
+
+  if (!(await updateSupabaseRow(ctx, "settings", settings.id, patch as SupabaseRow))) {
+    await mutateStore(ctx, (store) => {
+      const row = store.settings.find((item) => item.id === settings.id)
+      if (row) Object.assign(row, patch)
+    })
+  }
+
+  const overrides = await readIntegrationOverrides()
+  overrides[integrationId] = "connected"
+  await writeIntegrationOverrides(overrides)
+  await logAudit(ctx, "Cle API connectee", integrationId)
+}
+
+export async function updateApiSettingsData(formData: FormData) {
+  const ctx = await getDbContext()
+  const settings = await getSettingsData()
+  if (!settings) return
+
+  const openAiKey = formText(formData, "openai_api_key", settings.openai_api_key || settings.ai_api_key)
+  const patch: Partial<AppSettingsRecord> = {
+    openai_api_key: openAiKey,
+    ai_api_key: openAiKey || settings.ai_api_key,
+    ai_provider: openAiKey ? "openai" : settings.ai_provider,
+    whatsapp_api_key: formText(formData, "whatsapp_api_key", settings.whatsapp_api_key),
+    whatsapp_phone_number_id: formText(formData, "whatsapp_phone_number_id", settings.whatsapp_phone_number_id),
+    whatsapp_business_account_id: formText(
+      formData,
+      "whatsapp_business_account_id",
+      settings.whatsapp_business_account_id,
+    ),
+  }
+
+  if (!(await updateSupabaseRow(ctx, "settings", settings.id, patch as SupabaseRow))) {
+    await mutateStore(ctx, (store) => {
+      const row = store.settings.find((item) => item.id === settings.id)
+      if (row) Object.assign(row, patch)
+    })
+  }
+
+  const overrides = await readIntegrationOverrides()
+  if (hasOpenAiCredentials(patch)) overrides["catalog-openai"] = "connected"
+  if (hasWhatsappCredentials(patch)) overrides["catalog-whatsapp"] = "connected"
+  await writeIntegrationOverrides(overrides)
+  await logAudit(ctx, "Mise a jour cles API", "Integrations")
+}
+
+export async function updateAutoResponseData(formData: FormData) {
+  const ctx = await getDbContext()
+  const settings = await getSettingsData()
+  if (!settings) return
+
+  const patch: Partial<AppSettingsRecord> = {
+    auto_response_enabled: formData.get("auto_response_enabled") === "on",
+    auto_response_prompt: formText(formData, "auto_response_prompt", settings.auto_response_prompt),
+  }
+
+  if (!(await updateSupabaseRow(ctx, "settings", settings.id, patch as SupabaseRow))) {
+    await mutateStore(ctx, (store) => {
+      const row = store.settings.find((item) => item.id === settings.id)
+      if (row) Object.assign(row, patch)
+    })
+  }
+
+  await logAudit(ctx, "Configuration reponse IA", "Communication Hub")
+}
+
+export async function updateAttendanceTerminalsData(formData: FormData) {
+  const ctx = await getDbContext()
+  const settings = await getSettingsData()
+  if (!settings) return
+
+  const terminalTotal = Math.max(0, formNumber(formData, "terminal_total", settings.terminal_total ?? 15))
+  const terminalActive = Math.min(
+    terminalTotal,
+    Math.max(0, formNumber(formData, "terminal_active", settings.terminal_active ?? terminalTotal)),
+  )
+  const patch: Partial<AppSettingsRecord> = {
+    terminal_total: terminalTotal,
+    terminal_active: terminalActive,
+    terminal_mode: formText(formData, "terminal_mode", settings.terminal_mode || "Biometrie + GPS"),
+    terminal_location: formText(formData, "terminal_location", settings.terminal_location || "Siege principal"),
+  }
+
+  if (!(await updateSupabaseRow(ctx, "settings", settings.id, patch as SupabaseRow))) {
+    await mutateStore(ctx, (store) => {
+      const row = store.settings.find((item) => item.id === settings.id)
+      if (row) Object.assign(row, patch)
+    })
+  }
+
+  await logAudit(ctx, "Configuration terminaux", patch.terminal_location || "Terminaux")
 }
 
 export async function getOrganizationData() {
@@ -2370,10 +2632,12 @@ export async function getProfileData() {
 
 export async function updateProfileData(formData: FormData) {
   const ctx = await getDbContext()
+  const avatarUrl = await formImageDataUrl(formData, "avatar")
   const patch = {
     first_name: formText(formData, "first_name"),
     last_name: formText(formData, "last_name"),
     email: formText(formData, "email", ctx.email),
+    ...(avatarUrl ? { avatar_url: avatarUrl } : {}),
   }
 
   const updated = ctx.isSupabaseWorkspaceReady
@@ -2415,11 +2679,117 @@ export async function updateOrganizationData(formData: FormData) {
   await logAudit(ctx, "Mise a jour organisation", patch.name)
 }
 
+export async function inviteOrganizationMemberData(formData: FormData) {
+  const ctx = await getDbContext()
+  const email = formText(formData, "email")
+  if (!email) throw new Error("L'email est obligatoire.")
+
+  const firstName = formText(formData, "first_name", "Invite")
+  const lastName = formText(formData, "last_name")
+  const role = formText(formData, "role", "Collaborateur")
+  const record: ProfileRecord = {
+    id: id("profile"),
+    organization_id: ctx.orgId,
+    first_name: firstName,
+    last_name: lastName,
+    email,
+    avatar_url: null,
+    role,
+    is_active: false,
+    created_at: nowIso(),
+  }
+
+  if (!(await insertSupabaseRow(ctx, "profiles", record))) {
+    await mutateStore(ctx, (store) => {
+      const existing = store.profiles.find((profile) => profile.organization_id === ctx.orgId && profile.email === email)
+      if (existing) {
+        Object.assign(existing, {
+          first_name: firstName,
+          last_name: lastName,
+          role,
+          is_active: false,
+        })
+      } else {
+        store.profiles.push(record)
+      }
+    })
+  }
+
+  await logAudit(ctx, "Invitation membre", email)
+}
+
+export async function approveOrganizationMemberData(formData: FormData) {
+  const ctx = await getDbContext()
+  const memberId = formText(formData, "member_id")
+  if (!memberId) return
+
+  if (!(await updateSupabaseRow(ctx, "profiles", memberId, { is_active: true }))) {
+    await mutateStore(ctx, (store) => {
+      const profile = store.profiles.find((item) => item.organization_id === ctx.orgId && item.id === memberId)
+      if (profile) profile.is_active = true
+    })
+  }
+
+  await logAudit(ctx, "Validation acces", memberId)
+}
+
+export async function getCurrentAccessData() {
+  const ctx = await getDbContext()
+  return {
+    userId: ctx.userId,
+    email: ctx.email,
+    isActive: ctx.isActive,
+    role: ctx.role,
+  }
+}
+
 export async function getSettingsData() {
   const ctx = await getDbContext()
   const rows = (await selectSupabaseRows<AppSettingsRecord>(ctx, "settings"))
     ?? (await localRows(ctx, "settings"))
-  return rows[0]
+  const existing = rows[0]
+  if (existing) return existing
+
+  const record: AppSettingsRecord = {
+    id: id("settings"),
+    organization_id: ctx.orgId,
+    language: "fr",
+    dark_mode: false,
+    auto_translate: true,
+    ai_provider: "gemini",
+    ai_api_key: "",
+    openai_api_key: "",
+    whatsapp_api_key: "",
+    whatsapp_phone_number_id: "",
+    whatsapp_business_account_id: "",
+    auto_response_enabled: false,
+    auto_response_prompt: "Repondre de maniere professionnelle et preparer un brouillon clair.",
+    two_factor_enabled: false,
+    terminal_total: 15,
+    terminal_active: 14,
+    terminal_mode: "Biometrie + GPS",
+    terminal_location: "Siege principal",
+    ai_email_analysis: true,
+    notifications: {
+      crm_email: true,
+      finance_email: true,
+      security_email: true,
+      tasks_email: true,
+      crm_push: false,
+      finance_push: true,
+      security_push: true,
+      tasks_push: false,
+    },
+    created_at: nowIso(),
+  }
+
+  if (!(await insertSupabaseRow(ctx, "settings", record))) {
+    await mutateStore(ctx, (store) => {
+      store.settings.push(record)
+    })
+  }
+
+  return record
 }
 
 export async function updateSettingsData(formData: FormData) {
@@ -2429,20 +2799,39 @@ export async function updateSettingsData(formData: FormData) {
 
   const patch: Partial<AppSettingsRecord> = {
     language: formText(formData, "language", settings.language),
-    dark_mode: formData.get("dark_mode") === "on",
-    auto_translate: formData.get("auto_translate") === "on",
+    dark_mode: formData.has("dark_mode") ? formData.get("dark_mode") === "on" : settings.dark_mode,
+    auto_translate: formData.has("auto_translate")
+      ? formData.get("auto_translate") === "on"
+      : settings.auto_translate,
     ai_provider: formText(formData, "ai_provider", settings.ai_provider),
     ai_api_key: formText(formData, "ai_api_key", settings.ai_api_key),
-    ai_email_analysis: formData.get("ai_email_analysis") === "on",
+    openai_api_key: formText(formData, "openai_api_key", settings.openai_api_key || settings.ai_api_key),
+    whatsapp_api_key: formText(formData, "whatsapp_api_key", settings.whatsapp_api_key),
+    whatsapp_phone_number_id: formText(formData, "whatsapp_phone_number_id", settings.whatsapp_phone_number_id),
+    whatsapp_business_account_id: formText(
+      formData,
+      "whatsapp_business_account_id",
+      settings.whatsapp_business_account_id,
+    ),
+    auto_response_enabled: formData.has("auto_response_enabled")
+      ? formData.get("auto_response_enabled") === "on"
+      : settings.auto_response_enabled,
+    auto_response_prompt: formText(formData, "auto_response_prompt", settings.auto_response_prompt),
+    two_factor_enabled: formData.has("two_factor_enabled")
+      ? formData.get("two_factor_enabled") === "on"
+      : settings.two_factor_enabled,
+    ai_email_analysis: formData.has("ai_email_analysis")
+      ? formData.get("ai_email_analysis") === "on"
+      : settings.ai_email_analysis,
     notifications: {
-      crm_email: formData.get("crm_email") === "on",
-      finance_email: formData.get("finance_email") === "on",
-      security_email: formData.get("security_email") === "on",
-      tasks_email: formData.get("tasks_email") === "on",
-      crm_push: formData.get("crm_push") === "on",
-      finance_push: formData.get("finance_push") === "on",
-      security_push: formData.get("security_push") === "on",
-      tasks_push: formData.get("tasks_push") === "on",
+      crm_email: formData.has("crm_email") ? formData.get("crm_email") === "on" : settings.notifications?.crm_email ?? true,
+      finance_email: formData.has("finance_email") ? formData.get("finance_email") === "on" : settings.notifications?.finance_email ?? true,
+      security_email: formData.has("security_email") ? formData.get("security_email") === "on" : settings.notifications?.security_email ?? true,
+      tasks_email: formData.has("tasks_email") ? formData.get("tasks_email") === "on" : settings.notifications?.tasks_email ?? true,
+      crm_push: formData.has("crm_push") ? formData.get("crm_push") === "on" : settings.notifications?.crm_push ?? false,
+      finance_push: formData.has("finance_push") ? formData.get("finance_push") === "on" : settings.notifications?.finance_push ?? false,
+      security_push: formData.has("security_push") ? formData.get("security_push") === "on" : settings.notifications?.security_push ?? false,
+      tasks_push: formData.has("tasks_push") ? formData.get("tasks_push") === "on" : settings.notifications?.tasks_push ?? false,
     },
   }
 

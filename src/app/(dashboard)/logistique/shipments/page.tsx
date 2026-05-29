@@ -1,8 +1,10 @@
 import { getShipments } from "../actions"
+import { NewShipmentDialog } from "@/components/logistique/NewShipmentDialog"
+import { ShipmentMapDialog } from "@/components/logistique/ShipmentMapDialog"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Truck, Package, Navigation, Clock, ShieldCheck, Filter, Search, MoreVertical } from "lucide-react"
+import { Truck, Package, Clock, ShieldCheck, Filter, Search, MoreVertical } from "lucide-react"
 import { Input } from "@/components/ui/input"
 
 export default async function LogistiqueShipments() {
@@ -28,12 +30,8 @@ export default async function LogistiqueShipments() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" className="gap-2">
-            <Navigation className="h-4 w-4" /> Vue Carte (Live)
-          </Button>
-          <Button className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2">
-            <Package className="h-4 w-4" /> Nouveau Colis
-          </Button>
+          <ShipmentMapDialog shipments={shipments} />
+          <NewShipmentDialog />
         </div>
       </div>
 
@@ -68,7 +66,7 @@ export default async function LogistiqueShipments() {
         <Card className="border-slate-200 shadow-sm bg-slate-900">
           <CardContent className="pt-6">
             <div className="flex items-center justify-between text-white">
-              <Navigation className="h-8 w-8 text-indigo-400" />
+              <Truck className="h-8 w-8 text-indigo-400" />
               <Badge className="bg-indigo-600 text-white border-none">-15% Couts</Badge>
             </div>
             <p className="mt-4 text-sm font-bold text-slate-300 uppercase tracking-tighter underline">IA Opti Itineraire</p>
@@ -95,7 +93,11 @@ export default async function LogistiqueShipments() {
               <div key={shipment.id} className="p-4 rounded-2xl border border-slate-100 flex flex-wrap lg:flex-nowrap items-center justify-between gap-6 hover:bg-slate-50 transition-all group">
                 <div className="flex items-center gap-4">
                   <div className="h-12 w-12 rounded-xl bg-slate-100 flex items-center justify-center group-hover:bg-indigo-50 transition-colors">
-                    <Package className="h-6 w-6 text-slate-400 group-hover:text-indigo-600" />
+                    {shipment.package_photo_url ? (
+                      <img src={shipment.package_photo_url} alt={shipment.tracking_number} className="h-full w-full rounded-xl object-cover" />
+                    ) : (
+                      <Package className="h-6 w-6 text-slate-400 group-hover:text-indigo-600" />
+                    )}
                   </div>
                   <div>
                     <h4 className="font-black text-slate-900 uppercase tracking-tighter">{shipment.tracking_number}</h4>

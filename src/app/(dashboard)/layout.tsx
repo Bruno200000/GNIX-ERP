@@ -2,12 +2,20 @@ import { Sidebar } from "@/components/layout/Sidebar";
 import { Header } from "@/components/layout/Header";
 import { AIChatBubble } from "@/components/layout/AIChatBubble";
 import { UIProvider } from "@/context/UIContext";
+import { getCurrentAccessData } from "@/lib/erp-data";
+import { redirect } from "next/navigation";
 
-export default function DashboardLayout({
+export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const access = await getCurrentAccessData();
+
+  if (!access.isActive) {
+    redirect("/pending-approval");
+  }
+
   return (
     <UIProvider>
       <div className="flex h-full w-full overflow-hidden">

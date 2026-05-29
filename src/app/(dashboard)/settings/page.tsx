@@ -1,4 +1,4 @@
-import { getAppSettings, saveSettings } from "./actions"
+import { getAppSettings, requestPasswordReset, saveSettings } from "./actions"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
@@ -179,7 +179,7 @@ export default async function SettingsPage() {
                 <CardDescription>Les changements de mot de passe passent par Supabase Auth.</CardDescription>
               </CardHeader>
               <CardContent>
-                <Button variant="outline" type="button">Changer le mot de passe</Button>
+                <Button variant="outline" type="submit" formAction={requestPasswordReset}>Envoyer un lien de reinitialisation</Button>
               </CardContent>
             </Card>
           </TabsContent>

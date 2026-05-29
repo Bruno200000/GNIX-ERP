@@ -1,4 +1,5 @@
-import { getCommunicationsData, getIntegrationsData } from "@/lib/erp-data"
+import { getCommunicationsData, getIntegrationsData, getSettingsData, updateAutoResponseData } from "@/lib/erp-data"
+import { revalidatePath } from "next/cache"
 import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { AutoResponseDialog } from "@/components/communication/AutoResponseDialog"
@@ -14,10 +15,18 @@ export default async function CommunicationHub({
 }) {
   const params = await searchParams
   const activeChannel = typeof params.channel === 'string' ? params.channel : 'all'
+  const query = typeof params.q === 'string' ? params.q.trim().toLowerCase() : ''
 
-  const [allThreads, integrations] = await Promise.all([
+  async function saveAutoResponse(formData: FormData) {
+    "use server"
+    await updateAutoResponseData(formData)
+    revalidatePath("/communication")
+  }
+
+  const [allThreads, integrations, settings] = await Promise.all([
     getCommunicationsData(),
-    getIntegrationsData()
+    getIntegrationsData(),
+    getSettingsData(),
   ])
 
   const isEmailConnected = integrations.find(i => i.id === "catalog-email")?.status === "connected"
@@ -27,6 +36,10 @@ export default async function CommunicationHub({
     if (thread.type === "email" && !isEmailConnected) return false
     if (thread.type === "whatsapp" && !isWhatsappConnected) return false
     if (activeChannel !== 'all' && thread.type !== activeChannel) return false
+    if (query) {
+      const searchable = `${thread.client_name} ${thread.subject} ${thread.summary} ${thread.category}`.toLowerCase()
+      if (!searchable.includes(query)) return false
+    }
     return true
   })
 
@@ -59,7 +72,7 @@ export default async function CommunicationHub({
             <Button className="bg-indigo-600 hover:bg-indigo-700 gap-2 text-white">
               <Sparkles className="h-4 w-4" /> Reponse IA Auto
             </Button>
-          } />
+          } settings={settings} action={saveAutoResponse} />
         </div>
       </div>
 
@@ -96,10 +109,11 @@ export default async function CommunicationHub({
         </div>
 
         <div className="lg:col-span-3 space-y-4">
-          <div className="relative">
+          <form className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-            <Input className="pl-10 h-12 bg-white border-slate-200 rounded-xl" placeholder="Rechercher une conversation..." />
-          </div>
+            {activeChannel !== "all" && <input type="hidden" name="channel" value={activeChannel} />}
+            <Input name="q" defaultValue={query} className="pl-10 h-12 bg-white border-slate-200 rounded-xl" placeholder="Rechercher une conversation..." />
+          </form>
 
           <div className="space-y-3">
             {threads.length === 0 ? (

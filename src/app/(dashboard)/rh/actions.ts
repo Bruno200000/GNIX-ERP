@@ -8,6 +8,7 @@ import {
   getEmployeesData,
   getEvaluationsData,
   getLeavesData,
+  updateAttendanceTerminalsData,
   type EmployeeRecord,
 } from '@/lib/erp-data'
 
@@ -38,4 +39,9 @@ export async function addEmployee(formData: FormData) {
 export async function requestLeave(formData: FormData) {
   await createLeaveData(formData)
   revalidatePath('/rh/leaves')
+}
+
+export async function configureTerminals(formData: FormData) {
+  await updateAttendanceTerminalsData(formData)
+  revalidatePath('/rh/attendance')
 }

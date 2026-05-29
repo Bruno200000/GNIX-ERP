@@ -10,6 +10,7 @@ import {
   updateProfileData,
   updateSettingsData,
 } from '@/lib/erp-data'
+import { createClient } from '@/lib/supabase/server'
 
 export async function getProfile() {
   return getProfileData()
@@ -41,4 +42,16 @@ export async function saveOrganization(formData: FormData) {
 export async function saveSettings(formData: FormData) {
   await updateSettingsData(formData)
   revalidatePath('/settings')
+}
+
+export async function requestPasswordReset() {
+  const supabase = await createClient()
+  const profile = await getProfileData()
+
+  if (supabase && profile?.email) {
+    await supabase.auth.resetPasswordForEmail(profile.email)
+  }
+
+  revalidatePath('/settings')
+  revalidatePath('/settings/security')
 }

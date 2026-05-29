@@ -89,7 +89,18 @@ export default async function LogistiquePage() {
                         <TableCell className="font-mono text-xs text-slate-500">
                           {product.sku}
                         </TableCell>
-                        <TableCell className="font-medium">{product.name}</TableCell>
+                        <TableCell className="font-medium">
+                          <div className="flex items-center gap-3">
+                            <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-lg bg-slate-100">
+                              {product.image_url ? (
+                                <img src={product.image_url} alt={product.name} className="h-full w-full object-cover" />
+                              ) : (
+                                <Package className="h-4 w-4 text-slate-400" />
+                              )}
+                            </div>
+                            {product.name}
+                          </div>
+                        </TableCell>
                         <TableCell className="text-slate-900 dark:text-white">
                           {formatCurrency(product.price)}
                         </TableCell>
