@@ -7,7 +7,14 @@ import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
 import { Bell, Shield, User, Globe, Moon, CreditCard, Sparkles, Lock } from "lucide-react"
 
-export default async function SettingsPage() {
+export default async function SettingsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>
+}) {
+  const params = await searchParams
+  const activeTab = typeof params.tab === "string" ? params.tab : "general"
+  const savedSection = typeof params.saved === "string" ? params.saved : ""
   const settings = await getAppSettings()
 
   return (
@@ -19,7 +26,13 @@ export default async function SettingsPage() {
         </p>
       </div>
 
-      <Tabs defaultValue="general" className="space-y-4">
+      {savedSection && (
+        <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-700">
+          Parametres {savedSection === "notifications" ? "de notifications" : savedSection} enregistres et appliques a l'application.
+        </div>
+      )}
+
+      <Tabs defaultValue={activeTab} className="space-y-4">
           <TabsList className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
             <TabsTrigger value="general">General</TabsTrigger>
             <TabsTrigger value="ai">Intelligence Artificielle</TabsTrigger>
@@ -141,6 +154,9 @@ export default async function SettingsPage() {
               <CardContent>
                 <form action={saveSettings} className="space-y-4">
                 <input type="hidden" name="settings_section" value="notifications" />
+                <div className="rounded-xl border border-indigo-100 bg-indigo-50 px-4 py-3 text-xs font-medium text-indigo-700">
+                  Les notifications push alimentent la cloche du header avec les vraies alertes ERP en temps reel. Desactivez une categorie pour la retirer du flux.
+                </div>
                 {[
                   { key: "crm", name: "Alertes CRM", desc: "Nouveau lead ou score IA eleve", icon: User },
                   { key: "finance", name: "Finance", desc: "Retards de paiement ou factures a valider", icon: CreditCard },

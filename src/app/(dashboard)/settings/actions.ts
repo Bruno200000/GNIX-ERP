@@ -1,6 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { redirect } from 'next/navigation'
 import {
   getAuditLogsData,
   getOrganizationData,
@@ -40,9 +41,12 @@ export async function saveOrganization(formData: FormData) {
 }
 
 export async function saveSettings(formData: FormData) {
+  const section = formData.get('settings_section')
   await updateSettingsData(formData)
   revalidatePath('/settings')
   revalidatePath('/', 'layout')
+  if (section === 'security') redirect('/settings/security?saved=security')
+  if (typeof section === 'string' && section) redirect(`/settings?tab=${section}&saved=${section}`)
 }
 
 export async function requestPasswordReset() {

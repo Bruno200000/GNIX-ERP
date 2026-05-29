@@ -15,18 +15,22 @@ import {
   Keyboard,
   LifeBuoy,
   MessageSquare,
+  Package,
   Smartphone,
   Sparkles,
 } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
+import { useRouter } from "next/navigation"
 import { useUI } from "@/context/UIContext"
 import { logout } from "@/app/login/actions"
 import { MobileAccessDialog } from "./MobileAccessDialog"
 import { AICommandPalette } from "./AICommandPalette"
 import { createClient } from "@/lib/supabase/client"
+import type { AppNotificationRecord } from "@/lib/erp-data"
 
-export function Header() {
+export function Header({ notifications }: { notifications: AppNotificationRecord[] }) {
+  const router = useRouter()
   const { toggleSidebar, toggleSidebarCollapse } = useUI()
   const [userProfile, setUserProfile] = useState<any>(null)
   const [menuOpen, setMenuOpen] = useState(false)
@@ -112,33 +116,24 @@ export function Header() {
   const userEmail = userProfile?.email || ''
   const avatarUrl = userProfile?.avatar_url || null
   const userRole = userProfile?.role || userProfile?.user_metadata?.company_name || 'Utilisateur'
-  const notifications = [
-    {
-      id: "finance",
-      title: "Factures a verifier",
-      description: "Des paiements ou anomalies finance demandent votre attention.",
-      href: "/finance/anomalies",
-      icon: AlertTriangle,
-      tone: "text-amber-600 bg-amber-50",
-    },
-    {
-      id: "chat",
-      title: "Chat interne actif",
-      description: "Votre equipe peut maintenant envoyer messages et pieces jointes.",
-      href: "/chat",
-      icon: MessageSquare,
-      tone: "text-indigo-600 bg-indigo-50",
-    },
-    {
-      id: "settings",
-      title: "Preferences appliquees",
-      description: "Mode sombre, langue et notifications sont synchronises.",
-      href: "/settings",
-      icon: CheckCircle2,
-      tone: "text-emerald-600 bg-emerald-50",
-    },
-  ]
+  const notificationIcons = {
+    alert: AlertTriangle,
+    message: MessageSquare,
+    check: CheckCircle2,
+    sparkles: Sparkles,
+    package: Package,
+  }
+  const notificationTone = {
+    high: "text-red-600 bg-red-50",
+    medium: "text-amber-600 bg-amber-50",
+    low: "text-indigo-600 bg-indigo-50",
+  }
   const unreadNotifications = notifications.filter((item) => !readNotificationIds.includes(item.id))
+
+  useEffect(() => {
+    const interval = window.setInterval(() => router.refresh(), 30000)
+    return () => window.clearInterval(interval)
+  }, [router])
 
   return (
     <header className="flex h-16 items-center justify-between border-b border-slate-200 bg-white px-6 dark:border-slate-800 dark:bg-slate-950 transition-colors sticky top-0 z-30 shadow-sm">
@@ -271,8 +266,15 @@ export function Header() {
                 </button>
               </div>
               <div className="max-h-96 overflow-y-auto p-2">
+                {notifications.length === 0 && (
+                  <div className="p-6 text-center">
+                    <CheckCircle2 className="mx-auto mb-3 h-8 w-8 text-emerald-500" />
+                    <div className="text-sm font-bold text-slate-900 dark:text-white">Aucune notification active</div>
+                    <div className="mt-1 text-xs text-slate-500">Votre activite ERP est a jour.</div>
+                  </div>
+                )}
                 {notifications.map((item) => {
-                  const Icon = item.icon
+                  const Icon = notificationIcons[item.icon]
                   const isRead = readNotificationIds.includes(item.id)
                   return (
                     <Link
@@ -284,7 +286,7 @@ export function Header() {
                       }}
                       className="flex items-start gap-3 rounded-xl px-3 py-3 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800"
                     >
-                      <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${item.tone}`}>
+                      <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${notificationTone[item.severity]}`}>
                         <Icon className="h-5 w-5" />
                       </div>
                       <div className="min-w-0 flex-1">

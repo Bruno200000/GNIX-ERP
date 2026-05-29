@@ -9,6 +9,37 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { processAICommand } from "@/lib/ai-actions"
 
+type MobileData = {
+  dashboard: {
+    totalRevenue: number
+    paidRevenue: number
+    clientsCount: number
+    projectsCount: number
+    avgScore: number
+    openTasks: number
+    lowStock: number
+  }
+  profile: {
+    first_name: string
+    last_name: string
+    email: string
+    role: string
+    is_active: boolean
+  }
+  settings: {
+    ai_provider?: string
+  }
+  notifications: { id: string }[]
+  refreshed_at: string
+}
+
+function compactNumber(value: number) {
+  return new Intl.NumberFormat("fr-FR", {
+    notation: "compact",
+    maximumFractionDigits: 1,
+  }).format(value)
+}
+
 export default function MobileRemotePage() {
   const router = useRouter()
   const [isMenuOpen, setIsMenuOpen] = useState(false)
@@ -16,6 +47,7 @@ export default function MobileRemotePage() {
   const [aiResponse, setAiResponse] = useState<string | null>(null)
   const [isProcessing, setIsProcessing] = useState(false)
   const [commandText, setCommandText] = useState("")
+  const [mobileData, setMobileData] = useState<MobileData | null>(null)
   const recognitionRef = useRef<any>(null)
   const commandRoutes = useMemo(() => [
     { keywords: ["stock", "stocks", "produit", "produits", "logistique"], href: "/logistique" },
@@ -63,6 +95,28 @@ export default function MobileRemotePage() {
     }
   }, [handleVoiceCommand])
 
+  useEffect(() => {
+    let active = true
+
+    async function loadMobileData() {
+      try {
+        const response = await fetch("/mobile/data", { cache: "no-store" })
+        if (!response.ok) return
+        const data = await response.json()
+        if (active) setMobileData(data)
+      } catch {
+        // The mobile remote still works with local placeholders if the data endpoint is unavailable.
+      }
+    }
+
+    loadMobileData()
+    const interval = window.setInterval(loadMobileData, 30000)
+    return () => {
+      active = false
+      window.clearInterval(interval)
+    }
+  }, [])
+
   const toggleListening = () => {
     if (isListening) {
       recognitionRef.current?.stop()
@@ -73,10 +127,31 @@ export default function MobileRemotePage() {
     }
   }
 
+  const displayName = mobileData?.profile
+    ? `${mobileData.profile.first_name} ${mobileData.profile.last_name}`.trim() || mobileData.profile.email.split("@")[0]
+    : "Utilisateur"
   const stats = [
-    { label: 'Ventes', value: '12.4M', icon: Wallet, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
-    { label: 'Stocks', value: '842', icon: Package, color: 'text-indigo-400', bg: 'bg-indigo-500/10' },
-    { label: 'Alertes', value: '3', icon: Zap, color: 'text-amber-400', bg: 'bg-amber-500/10' },
+    {
+      label: 'Ventes',
+      value: mobileData ? compactNumber(mobileData.dashboard.totalRevenue) : '...',
+      icon: Wallet,
+      color: 'text-emerald-400',
+      bg: 'bg-emerald-500/10',
+    },
+    {
+      label: 'Clients',
+      value: mobileData ? String(mobileData.dashboard.clientsCount) : '...',
+      icon: Users,
+      color: 'text-indigo-400',
+      bg: 'bg-indigo-500/10',
+    },
+    {
+      label: 'Alertes',
+      value: mobileData ? String(mobileData.notifications.length) : '...',
+      icon: Zap,
+      color: 'text-amber-400',
+      bg: 'bg-amber-500/10',
+    },
   ]
 
   const menuItems = [
@@ -150,7 +225,9 @@ export default function MobileRemotePage() {
                <Users className="h-5 w-5 text-white" />
              </div>
            </div>
-           <span className="absolute -top-1 -right-1 h-4 w-4 bg-red-500 rounded-full border-2 border-[#050505] flex items-center justify-center text-[8px] font-bold">2</span>
+          <span className="absolute -top-1 -right-1 h-4 min-w-4 bg-red-500 rounded-full border-2 border-[#050505] flex items-center justify-center text-[8px] font-bold">
+            {mobileData?.notifications.length ?? 0}
+          </span>
         </div>
       </header>
 
@@ -160,10 +237,28 @@ export default function MobileRemotePage() {
         <div className="bg-gradient-to-br from-indigo-600 to-indigo-800 rounded-[2.5rem] p-8 shadow-2xl shadow-indigo-500/20 relative overflow-hidden">
           <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16 blur-2xl" />
           <p className="text-indigo-200 text-xs font-bold uppercase tracking-[0.2em] mb-2">Bienvenue</p>
-          <h2 className="text-3xl font-black mb-4">Bruno Admin</h2>
+          <h2 className="text-3xl font-black mb-4">{displayName}</h2>
           <div className="flex items-center gap-2">
-            <Badge className="bg-white/20 hover:bg-white/30 border-none text-[10px] uppercase font-black px-3 py-1">Super Utilisateur</Badge>
-            <Badge className="bg-emerald-500/20 text-emerald-400 border-none text-[10px] uppercase font-black px-3 py-1">En ligne</Badge>
+            <Badge className="bg-white/20 hover:bg-white/30 border-none text-[10px] uppercase font-black px-3 py-1">
+              {mobileData?.profile.role || "Utilisateur"}
+            </Badge>
+            <Badge className="bg-emerald-500/20 text-emerald-400 border-none text-[10px] uppercase font-black px-3 py-1">
+              {mobileData?.profile.is_active === false ? "En attente" : "En ligne"}
+            </Badge>
+          </div>
+          <div className="mt-5 grid grid-cols-3 gap-2 text-center">
+            <div className="rounded-2xl bg-white/10 p-3">
+              <p className="text-lg font-black">{mobileData?.dashboard.projectsCount ?? "..."}</p>
+              <p className="text-[8px] font-bold uppercase tracking-widest text-indigo-200">Projets</p>
+            </div>
+            <div className="rounded-2xl bg-white/10 p-3">
+              <p className="text-lg font-black">{mobileData?.dashboard.openTasks ?? "..."}</p>
+              <p className="text-[8px] font-bold uppercase tracking-widest text-indigo-200">Taches</p>
+            </div>
+            <div className="rounded-2xl bg-white/10 p-3">
+              <p className="text-lg font-black">{mobileData?.dashboard.avgScore ?? "..."}</p>
+              <p className="text-[8px] font-bold uppercase tracking-widest text-indigo-200">Score</p>
+            </div>
           </div>
         </div>
 
@@ -257,6 +352,22 @@ export default function MobileRemotePage() {
         {/* Quick Actions List */}
         <div className="space-y-4">
           <h3 className="text-sm font-black uppercase tracking-widest text-slate-400 px-2">Actions Rapides</h3>
+          <div className="rounded-3xl border border-white/5 bg-white/5 p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-black uppercase tracking-widest text-slate-500">Base de donnees</p>
+                <p className="mt-1 text-sm font-bold text-white">
+                  {mobileData ? "Synchronisee avec Supabase / ERP" : "Chargement des donnees..."}
+                </p>
+              </div>
+              <Badge className="border-none bg-emerald-500/20 text-emerald-400">
+                {mobileData?.settings.ai_provider || "IA"}
+              </Badge>
+            </div>
+            <p className="mt-3 text-[10px] text-slate-500">
+              Derniere actualisation: {mobileData ? new Date(mobileData.refreshed_at).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }) : "--:--"}
+            </p>
+          </div>
           <div className="grid grid-cols-2 gap-3">
              <Link href="/logistique" className="flex flex-col items-center gap-3 p-6 bg-white/5 rounded-[2rem] border border-white/5 active:bg-white/10 transition-colors">
                <Package className="h-6 w-6 text-indigo-400" />

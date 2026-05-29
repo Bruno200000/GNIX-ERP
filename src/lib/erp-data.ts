@@ -310,6 +310,17 @@ export type AppSettingsRecord = BaseRecord & {
   notifications: Record<string, boolean>
 }
 
+export type AppNotificationRecord = {
+  id: string
+  category: "crm" | "finance" | "security" | "tasks" | "stock"
+  title: string
+  description: string
+  href: string
+  icon: "alert" | "message" | "check" | "sparkles" | "package"
+  severity: "low" | "medium" | "high"
+  created_at: string
+}
+
 type ErpStore = {
   organizations: OrganizationRecord[]
   profiles: ProfileRecord[]
@@ -1706,6 +1717,99 @@ export async function getDashboardData() {
     anomalies,
     topClients: clients.slice(0, 3),
   }
+}
+
+export async function getAppNotificationsData(): Promise<AppNotificationRecord[]> {
+  const [settings, dashboard, invoices, products, tasks, communications] = await Promise.all([
+    getSettingsData(),
+    getDashboardData(),
+    getInvoicesData(),
+    getProductsData(),
+    getTasksData(),
+    getCommunicationsData(),
+  ])
+  const enabled = settings?.notifications ?? {}
+  const notifications: AppNotificationRecord[] = []
+
+  if (enabled.finance_push !== false) {
+    const overdue = invoices.filter((invoice) => invoice.status === "overdue")
+    if (dashboard.anomalies.length > 0) {
+      notifications.push({
+        id: "finance-anomalies",
+        category: "finance",
+        title: "Anomalies finance detectees",
+        description: `${dashboard.anomalies.length} facture(s) ou paiement(s) demandent une verification.`,
+        href: "/finance/anomalies",
+        icon: "alert",
+        severity: overdue.length > 0 ? "high" : "medium",
+        created_at: nowIso(),
+      })
+    }
+  }
+
+  if (enabled.crm_push !== false) {
+    const hotLeads = dashboard.topClients.filter((client) => client.ai_conversion_score >= 80)
+    if (hotLeads.length > 0) {
+      notifications.push({
+        id: "crm-hot-leads",
+        category: "crm",
+        title: "Opportunites CRM chaudes",
+        description: `${hotLeads.length} client(s) ont un score IA eleve.`,
+        href: "/crm/leads",
+        icon: "sparkles",
+        severity: "medium",
+        created_at: nowIso(),
+      })
+    }
+  }
+
+  if (enabled.tasks_push !== false) {
+    const openTasks = tasks.filter((task) => task.status !== "completed")
+    if (openTasks.length > 0) {
+      notifications.push({
+        id: "tasks-open",
+        category: "tasks",
+        title: "Taches projet ouvertes",
+        description: `${openTasks.length} tache(s) restent a traiter dans les projets.`,
+        href: "/projets/tasks",
+        icon: "check",
+        severity: openTasks.length > 5 ? "medium" : "low",
+        created_at: nowIso(),
+      })
+    }
+  }
+
+  if (enabled.security_push !== false && communications.some((message) => message.sentiment === "negative")) {
+    notifications.push({
+      id: "communication-negative",
+      category: "security",
+      title: "Communication sensible",
+      description: "Un message client avec sentiment negatif merite une reponse rapide.",
+      href: "/communication",
+      icon: "message",
+      severity: "medium",
+      created_at: nowIso(),
+    })
+  }
+
+  const lowStock = products.filter((product) => product.totalStock <= 10)
+  if (lowStock.length > 0) {
+    notifications.push({
+      id: "stock-low",
+      category: "stock",
+      title: "Stock faible",
+      description: `${lowStock.length} produit(s) sont sous le seuil critique.`,
+      href: "/logistique",
+      icon: "package",
+      severity: "high",
+      created_at: nowIso(),
+    })
+  }
+
+  return notifications.sort((a, b) => {
+    const score = { high: 3, medium: 2, low: 1 }
+    return score[b.severity] - score[a.severity]
+  })
 }
 
 export async function getClientsData() {
