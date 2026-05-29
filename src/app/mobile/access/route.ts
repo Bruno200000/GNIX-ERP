@@ -33,7 +33,7 @@ function mobileAccessDetails(request: NextRequest, preferredIp?: string, preferr
   const lanIps = getLanIps()
   const isLocalHost = ["localhost", "127.0.0.1", "::1"].includes(hostname)
   const serverIp = preferredIp || (isLocalHost ? lanIps[0] : hostname) || hostname
-  const serverPort = preferredPort || port || "3000"
+  const serverPort = preferredPort ?? (port || (isLocalHost ? "3000" : ""))
 
   return {
     lanIps,

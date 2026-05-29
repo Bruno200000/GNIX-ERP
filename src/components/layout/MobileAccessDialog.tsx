@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 
 export function MobileAccessDialog() {
   const [serverIp, setServerIp] = useState("")
+  const [protocol, setProtocol] = useState("http:")
   const [port, setPort] = useState("3000")
   const [lanIps, setLanIps] = useState<string[]>([])
   const [temporaryUrl, setTemporaryUrl] = useState("")
@@ -21,8 +22,10 @@ export function MobileAccessDialog() {
 
     async function loadAccessDetails() {
       const currentHostname = window.location.hostname
-      const currentPort = window.location.port || "3000"
+      const isLocalHost = ["localhost", "127.0.0.1", "::1"].includes(currentHostname)
+      const currentPort = window.location.port || (isLocalHost ? "3000" : "")
 
+      setProtocol(window.location.protocol || "http:")
       setPort(currentPort)
       setServerIp(currentHostname === "localhost" ? "" : currentHostname)
 
@@ -33,6 +36,7 @@ export function MobileAccessDialog() {
         const details = await response.json()
         if (!active) return
 
+        setProtocol(details.mobileUrl?.startsWith("https://") ? "https:" : window.location.protocol || "http:")
         setServerIp(details.serverIp || currentHostname)
         setPort(details.port || currentPort)
         setLanIps(Array.isArray(details.lanIps) ? details.lanIps : [])
@@ -56,8 +60,8 @@ export function MobileAccessDialog() {
 
   const mobileUrl = useMemo(() => {
     if (!cleanServerIp) return ""
-    return `http://${cleanServerIp}${port ? `:${port}` : ""}/mobile`
-  }, [cleanServerIp, port])
+    return `${protocol}//${cleanServerIp}${port ? `:${port}` : ""}/mobile`
+  }, [cleanServerIp, port, protocol])
 
   useEffect(() => {
     if (!mobileUrl) {
@@ -146,7 +150,7 @@ export function MobileAccessDialog() {
                 type="text"
                 value={serverIp}
                 onChange={(event) => setServerIp(event.target.value)}
-                placeholder="IP du PC"
+                placeholder="Domaine ou IP"
                 className="w-full h-10 px-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-mono text-indigo-600 focus:ring-2 focus:ring-indigo-600 outline-none"
               />
             </div>
@@ -161,7 +165,7 @@ export function MobileAccessDialog() {
             </div>
           </div>
 
-          {lanIps.length > 1 && (
+          {lanIps.length > 1 && protocol === "http:" && (
             <div className="mb-4 flex w-full flex-wrap gap-2 px-4">
               {lanIps.map((ip) => (
                 <button
