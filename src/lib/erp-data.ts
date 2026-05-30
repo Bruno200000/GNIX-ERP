@@ -1518,7 +1518,7 @@ async function getDbContext(): Promise<DbContext> {
       }
     }
 
-    const orgId = id("org")
+    const orgId = randomUUID()
     const organization: OrganizationRecord = {
       id: orgId,
       name: companyName,
@@ -2518,8 +2518,18 @@ export async function sendChatMessageData(formData: FormData) {
 
 export async function getTicketsData() {
   const ctx = await getDbContext()
-  return (await selectSupabaseRows<TicketRecord>(ctx, "tickets"))
-    ?? (await localRows(ctx, "tickets"))
+  const rows = await selectSupabaseRows<TicketRecord>(ctx, "tickets")
+  if (rows?.length) return rows
+
+  if (rows && ctx.isSupabaseWorkspaceReady) {
+    const seedRows = seedWorkspace(ctx.orgId, ctx.userId, ctx.email, ctx.orgName).tickets
+    for (const row of seedRows) {
+      await insertSupabaseRow(ctx, "tickets", row)
+    }
+    return (await selectSupabaseRows<TicketRecord>(ctx, "tickets")) ?? seedRows
+  }
+
+  return localRows(ctx, "tickets")
 }
 
 export async function createTicketData(formData: FormData) {
@@ -2545,23 +2555,33 @@ export async function createTicketData(formData: FormData) {
 
 export async function updateTicketStatusData(ticketId: string, newStatus: string) {
   const ctx = await getDbContext()
-  
-  const rows = await localRows(ctx, "tickets")
-  const index = rows.findIndex(r => r.id === ticketId)
-  if (index !== -1) {
-    if (!(await updateSupabaseRow(ctx, "tickets", ticketId, { status: newStatus }))) {
-      await mutateStore(ctx, (store) => {
-        const i = store.tickets.findIndex(r => r.id === ticketId)
-        if (i !== -1) store.tickets[i].status = newStatus
-      })
-    }
+
+  if (await updateSupabaseRow(ctx, "tickets", ticketId, { status: newStatus })) {
+    await logAudit(ctx, "Mise a jour ticket", ticketId)
+    return
   }
+
+  await mutateStore(ctx, (store) => {
+    const i = store.tickets.findIndex(r => r.id === ticketId)
+    if (i !== -1) store.tickets[i].status = newStatus
+  })
+  await logAudit(ctx, "Mise a jour ticket", ticketId)
 }
 
 export async function getAssetsData() {
   const ctx = await getDbContext()
-  return (await selectSupabaseRows<AssetRecord>(ctx, "assets"))
-    ?? (await localRows(ctx, "assets"))
+  const rows = await selectSupabaseRows<AssetRecord>(ctx, "assets")
+  if (rows?.length) return rows
+
+  if (rows && ctx.isSupabaseWorkspaceReady) {
+    const seedRows = seedWorkspace(ctx.orgId, ctx.userId, ctx.email, ctx.orgName).assets
+    for (const row of seedRows) {
+      await insertSupabaseRow(ctx, "assets", row)
+    }
+    return (await selectSupabaseRows<AssetRecord>(ctx, "assets")) ?? seedRows
+  }
+
+  return localRows(ctx, "assets")
 }
 
 export async function getIntegrationsData() {
@@ -2866,7 +2886,7 @@ export async function inviteOrganizationMemberData(formData: FormData) {
   const lastName = formText(formData, "last_name")
   const role = formText(formData, "role", "Collaborateur")
   const record: ProfileRecord = {
-    id: id("profile"),
+    id: randomUUID(),
     organization_id: ctx.orgId,
     first_name: firstName,
     last_name: lastName,
