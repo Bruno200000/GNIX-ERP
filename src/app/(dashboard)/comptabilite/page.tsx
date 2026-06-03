@@ -1,7 +1,7 @@
 import Link from "next/link"
 import { getAccountingEntries, getSalaryPayments } from "./actions"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Calculator, FileSpreadsheet, WalletCards, BookOpenCheck } from "lucide-react"
+import { Calculator, FileSpreadsheet, WalletCards, BookOpenCheck, Scale } from "lucide-react"
 
 export default async function ComptabilitePage() {
   const [salaryPayments, entries] = await Promise.all([getSalaryPayments(), getAccountingEntries()])
@@ -57,11 +57,12 @@ export default async function ComptabilitePage() {
         </Card>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-4">
         {[
           { href: "/comptabilite/salaires", title: "Paiement de salaire", description: "Enregistrer et suivre les salaires.", icon: WalletCards },
           { href: "/comptabilite/journal", title: "Journal comptable", description: "Consulter les ecritures generees.", icon: BookOpenCheck },
           { href: "/comptabilite/plan-comptable", title: "Plan comptable", description: "Voir les comptes utilises.", icon: FileSpreadsheet },
+          { href: "/comptabilite/bilan", title: "Bilan comptable", description: "Analyser actif, passif et equilibre.", icon: Scale },
         ].map((item) => (
           <Link key={item.href} href={item.href}>
             <Card className="h-full transition-colors hover:bg-slate-50 dark:hover:bg-slate-900">

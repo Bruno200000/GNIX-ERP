@@ -79,6 +79,7 @@ const navigation = [
       { name: 'Paiement de salaire', href: '/comptabilite/salaires' },
       { name: 'Journal comptable', href: '/comptabilite/journal' },
       { name: 'Plan comptable', href: '/comptabilite/plan-comptable' },
+      { name: 'Bilan comptable', href: '/comptabilite/bilan' },
     ]
   },
   { 

@@ -2033,11 +2033,19 @@ export async function createSalaryPaymentData(formData: FormData) {
     created_at: nowIso(),
   }
 
-  if (!(await insertSupabaseRow(ctx, "salary_payments", record))) {
+  const salaryInserted = await insertSupabaseRow(ctx, "salary_payments", record)
+  if (!salaryInserted && ctx.isSupabaseWorkspaceReady) {
+    throw new Error("Impossible d'enregistrer le paiement. Verifiez la table salary_payments et ses policies RLS.")
+  }
+  if (!salaryInserted) {
     await mutateStore(ctx, (store) => store.salary_payments.unshift(record))
   }
 
-  if (!(await insertSupabaseRow(ctx, "accounting_entries", entry))) {
+  const entryInserted = await insertSupabaseRow(ctx, "accounting_entries", entry)
+  if (!entryInserted && ctx.isSupabaseWorkspaceReady) {
+    throw new Error("Le paiement est cree, mais l'ecriture comptable a echoue. Verifiez accounting_entries et ses policies RLS.")
+  }
+  if (!entryInserted) {
     await mutateStore(ctx, (store) => store.accounting_entries.unshift(entry))
   }
 

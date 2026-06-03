@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -17,14 +17,25 @@ export function RecordSalaryPaymentDialog({
 }) {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [selectedEmployeeId, setSelectedEmployeeId] = useState(employees[0]?.id || "")
+  const [amount, setAmount] = useState(employees[0]?.salary || 0)
   const selectedEmployee = employees.find((employee) => employee.id === selectedEmployeeId)
+
+  useEffect(() => {
+    if (selectedEmployee) {
+      setAmount(selectedEmployee.salary)
+    }
+  }, [selectedEmployee])
 
   async function handleSubmit(formData: FormData) {
     setLoading(true)
+    setError(null)
     try {
       await action(formData)
       setOpen(false)
+    } catch (e: any) {
+      setError(e.message || "Le paiement de salaire n'a pas pu etre enregistre.")
     } finally {
       setLoading(false)
     }
@@ -32,10 +43,14 @@ export function RecordSalaryPaymentDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={<Button className="gap-2 bg-indigo-600 text-white hover:bg-indigo-700" disabled={!employees.length} />}>
-        <WalletCards className="h-4 w-4" />
-        Payer un salaire
-      </DialogTrigger>
+      <DialogTrigger
+        render={
+          <Button className="gap-2 bg-indigo-600 text-white hover:bg-indigo-700" disabled={!employees.length}>
+            <WalletCards className="h-4 w-4" />
+            Payer un salaire
+          </Button>
+        }
+      />
       <DialogContent className="sm:max-w-lg rounded-2xl border-slate-200 shadow-2xl">
         <DialogHeader>
           <DialogTitle>Enregistrer un paiement de salaire</DialogTitle>
@@ -64,7 +79,15 @@ export function RecordSalaryPaymentDialog({
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="amount">Montant</Label>
-              <Input id="amount" name="amount" type="number" min="0" defaultValue={selectedEmployee?.salary || 0} required />
+              <Input
+                id="amount"
+                name="amount"
+                type="number"
+                min="0"
+                value={amount}
+                onChange={(event) => setAmount(Number(event.target.value))}
+                required
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="payment_date">Date de paiement</Label>
@@ -91,6 +114,12 @@ export function RecordSalaryPaymentDialog({
               </select>
             </div>
           </div>
+
+          {error && (
+            <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-600">
+              {error}
+            </div>
+          )}
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>Annuler</Button>
