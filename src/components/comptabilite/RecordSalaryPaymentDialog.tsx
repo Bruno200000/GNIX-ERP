@@ -1,11 +1,12 @@
 'use client'
 
 import { useEffect, useState } from "react"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import Link from "next/link"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { WalletCards } from "lucide-react"
+import { UserPlus, WalletCards } from "lucide-react"
 import type { EmployeeRecord } from "@/lib/erp-data"
 
 export function RecordSalaryPaymentDialog({
@@ -42,21 +43,40 @@ export function RecordSalaryPaymentDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger
-        render={
-          <Button className="gap-2 bg-indigo-600 text-white hover:bg-indigo-700" disabled={!employees.length}>
-            <WalletCards className="h-4 w-4" />
-            Payer un salaire
-          </Button>
-        }
-      />
+    <>
+      <Button
+        type="button"
+        className="gap-2 bg-indigo-600 text-white hover:bg-indigo-700"
+        onClick={() => setOpen(true)}
+      >
+        <WalletCards className="h-4 w-4" />
+        Payer un salaire
+      </Button>
+      <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent className="sm:max-w-lg rounded-2xl border-slate-200 shadow-2xl">
         <DialogHeader>
           <DialogTitle>Enregistrer un paiement de salaire</DialogTitle>
           <DialogDescription>Le paiement cree aussi une ecriture comptable dans le journal.</DialogDescription>
         </DialogHeader>
 
+        {!employees.length ? (
+          <div className="space-y-4">
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-700">
+              Aucun employe n'est disponible pour le paiement. Ajoutez d'abord un employe dans le module RH.
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setOpen(false)}>Annuler</Button>
+              <Link
+                href="/rh"
+                onClick={() => setOpen(false)}
+                className="inline-flex h-8 items-center justify-center gap-2 rounded-lg bg-indigo-600 px-2.5 text-sm font-medium text-white transition-colors hover:bg-indigo-700"
+              >
+                <UserPlus className="h-4 w-4" />
+                Ajouter un employe
+              </Link>
+            </DialogFooter>
+          </div>
+        ) : (
         <form action={handleSubmit} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="employee_id">Employe</Label>
@@ -126,7 +146,9 @@ export function RecordSalaryPaymentDialog({
             <Button type="submit" disabled={loading}>{loading ? "Enregistrement..." : "Enregistrer"}</Button>
           </DialogFooter>
         </form>
+        )}
       </DialogContent>
     </Dialog>
+    </>
   )
 }
