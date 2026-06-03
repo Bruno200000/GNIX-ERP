@@ -16,6 +16,7 @@ import {
   MessageSquare,
   Ticket,
   BarChart3,
+  Calculator,
   FileText,
   Clock,
   Truck,
@@ -67,6 +68,17 @@ const navigation = [
       { name: 'Factures', href: '/finance' },
       { name: 'Paiements', href: '/finance/payments' },
       { name: 'Anomalies IA', href: '/finance/anomalies' },
+    ]
+  },
+  {
+    name: 'Comptabilite',
+    href: '/comptabilite',
+    icon: Calculator,
+    subItems: [
+      { name: 'Tableau de bord', href: '/comptabilite' },
+      { name: 'Paiement de salaire', href: '/comptabilite/salaires' },
+      { name: 'Journal comptable', href: '/comptabilite/journal' },
+      { name: 'Plan comptable', href: '/comptabilite/plan-comptable' },
     ]
   },
   { 

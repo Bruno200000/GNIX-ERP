@@ -47,6 +47,7 @@ export function ChatMessageComposer({
         name="content"
         className="pr-28 h-12 bg-slate-50 border-none rounded-xl focus:ring-2 focus:ring-indigo-500/20 transition-all"
         placeholder={attachmentName ? `Piece jointe: ${attachmentName}` : `Ecrire un message dans # ${channelName}...`}
+        disabled={!channelId || isPending}
       />
       {attachmentName && (
         <div className="absolute -top-7 left-2 rounded-full bg-indigo-50 px-3 py-1 text-[10px] font-bold text-indigo-600">
@@ -64,10 +65,11 @@ export function ChatMessageComposer({
           variant="ghost"
           size="icon"
           className="h-8 w-8 text-slate-400 hover:text-indigo-600"
+          disabled={!channelId || isPending}
           onClick={() => {
             const input = formRef.current?.elements.namedItem("content")
             if (input instanceof HTMLInputElement) {
-              input.value = `${input.value} 🙂`.trim()
+              input.value = `${input.value} :)`.trim()
               input.focus()
             }
           }}
@@ -79,13 +81,14 @@ export function ChatMessageComposer({
           variant="ghost"
           size="icon"
           className="h-8 w-8 text-slate-400 hover:text-indigo-600"
+          disabled={!channelId || isPending}
           onClick={() => fileRef.current?.click()}
         >
           <Paperclip className="h-5 w-5" />
         </Button>
         <button
           type="submit"
-          disabled={isPending}
+          disabled={!channelId || isPending}
           className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-600 text-white shadow-md transition-all hover:bg-indigo-700 disabled:opacity-50"
           aria-label="Envoyer le message"
         >

@@ -71,6 +71,31 @@ create table if not exists public.payments (
   created_at timestamptz not null default now()
 );
 
+create table if not exists public.salary_payments (
+  id text primary key,
+  organization_id uuid not null references public.organizations(id) on delete cascade,
+  employee_id text not null,
+  amount numeric not null default 0,
+  pay_period text not null default '',
+  payment_date date not null default current_date,
+  payment_method text not null default 'bank',
+  status text not null default 'paid',
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.accounting_entries (
+  id text primary key,
+  organization_id uuid not null references public.organizations(id) on delete cascade,
+  entry_number text not null,
+  label text not null,
+  account_code text not null,
+  debit numeric not null default 0,
+  credit numeric not null default 0,
+  entry_date date not null default current_date,
+  source text not null default 'manual',
+  created_at timestamptz not null default now()
+);
+
 create table if not exists public.products (
   id text primary key,
   organization_id uuid not null references public.organizations(id) on delete cascade,
@@ -355,6 +380,8 @@ create index if not exists clients_org_idx on public.clients (organization_id, c
 create index if not exists quotes_org_idx on public.quotes (organization_id, created_at);
 create index if not exists invoices_org_idx on public.invoices (organization_id, created_at);
 create index if not exists payments_org_idx on public.payments (organization_id, created_at);
+create index if not exists salary_payments_org_idx on public.salary_payments (organization_id, created_at);
+create index if not exists accounting_entries_org_idx on public.accounting_entries (organization_id, created_at);
 create index if not exists products_org_idx on public.products (organization_id, created_at);
 create index if not exists purchase_orders_org_idx on public.purchase_orders (organization_id, created_at);
 create index if not exists warehouses_org_idx on public.warehouses (organization_id, name);
@@ -416,6 +443,8 @@ alter table public.clients enable row level security;
 alter table public.quotes enable row level security;
 alter table public.invoices enable row level security;
 alter table public.payments enable row level security;
+alter table public.salary_payments enable row level security;
+alter table public.accounting_entries enable row level security;
 alter table public.products enable row level security;
 alter table public.purchase_orders enable row level security;
 alter table public.warehouses enable row level security;
@@ -445,7 +474,7 @@ declare
   t text;
 begin
   foreach t in array array[
-    'clients','quotes','invoices','payments','products','purchase_orders','warehouses','inventory',
+    'clients','quotes','invoices','payments','salary_payments','accounting_entries','products','purchase_orders','warehouses','inventory',
     'stock_entries','delivery_notes','shipments','employees','attendance','leaves','evaluations',
     'projects','tasks','meetings','communications','calls','chat_channels','chat_messages',
     'tickets','assets','integrations','audit_logs','settings'
@@ -545,6 +574,8 @@ with expected(table_name, column_name) as (
     ('quotes','id'),('quotes','organization_id'),('quotes','client_id'),('quotes','quote_number'),('quotes','total_amount'),('quotes','status'),('quotes','valid_until'),('quotes','items'),('quotes','created_at'),
     ('invoices','id'),('invoices','organization_id'),('invoices','client_id'),('invoices','invoice_number'),('invoices','total_amount'),('invoices','tax_amount'),('invoices','status'),('invoices','due_date'),('invoices','ai_anomaly_flag'),('invoices','created_at'),
     ('payments','id'),('payments','organization_id'),('payments','invoice_id'),('payments','amount'),('payments','payment_date'),('payments','payment_method'),('payments','created_at'),
+    ('salary_payments','id'),('salary_payments','organization_id'),('salary_payments','employee_id'),('salary_payments','amount'),('salary_payments','pay_period'),('salary_payments','payment_date'),('salary_payments','payment_method'),('salary_payments','status'),('salary_payments','created_at'),
+    ('accounting_entries','id'),('accounting_entries','organization_id'),('accounting_entries','entry_number'),('accounting_entries','label'),('accounting_entries','account_code'),('accounting_entries','debit'),('accounting_entries','credit'),('accounting_entries','entry_date'),('accounting_entries','source'),('accounting_entries','created_at'),
     ('products','id'),('products','organization_id'),('products','sku'),('products','name'),('products','price'),('products','image_url'),('products','created_at'),
     ('purchase_orders','id'),('purchase_orders','organization_id'),('purchase_orders','order_number'),('purchase_orders','supplier'),('purchase_orders','status'),('purchase_orders','total_amount'),('purchase_orders','expected_date'),('purchase_orders','items'),('purchase_orders','created_at'),
     ('warehouses','id'),('warehouses','organization_id'),('warehouses','name'),('warehouses','location'),('warehouses','capacity'),('warehouses','created_at'),

@@ -6,7 +6,7 @@ import { ChatSummaryDialog } from "@/components/communication/ChatSummaryDialog"
 import { CreateChannelDialog } from "@/components/communication/CreateChannelDialog"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Hash, User, Search, Plus, Paperclip } from "lucide-react"
+import { Hash, User, Search, Plus, Paperclip, MessageCircle } from "lucide-react"
 
 async function sendMessage(formData: FormData) {
   "use server"
@@ -26,10 +26,12 @@ export default async function ChatInterne({
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>
 }) {
   const params = await searchParams
-  const { channels, messages, users } = await getChatData()
+  const { channels, directChannels, messages, users } = await getChatData()
+  const allChannels = [...channels, ...directChannels]
   
   const activeChannelId = typeof params.channel === 'string' ? params.channel : channels[0]?.id
-  const activeChannel = channels.find(c => c.id === activeChannelId) || channels[0]
+  const activeChannel = allChannels.find(c => c.id === activeChannelId) || channels[0] || directChannels[0]
+  const isDirectChannel = activeChannel?.name.startsWith("DM - ")
   
   const channelMessages = messages.filter(m => m.channel_id === activeChannel?.id)
 
@@ -68,15 +70,19 @@ export default async function ChatInterne({
                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Direct Messages</span>
               </div>
               <div className="space-y-1">
-                {users.map((user) => (
-                  <div key={user.id} className="flex items-center justify-between px-2 py-1.5 rounded-lg hover:bg-slate-50 cursor-pointer transition-colors">
+                {users.map((user) => {
+                  const directChannel = directChannels.find((channel) => channel.id.includes(user.id))
+                  return (
+                  <Link href={`/chat?channel=${directChannel?.id || ""}`} key={user.id}>
+                  <div className={`flex items-center justify-between px-2 py-1.5 rounded-lg cursor-pointer transition-colors ${activeChannel?.id === directChannel?.id ? 'bg-indigo-50 text-indigo-700' : 'hover:bg-slate-50'}`}>
                     <div className="flex items-center gap-2 text-sm font-medium text-slate-600">
                       <div className="h-2 w-2 rounded-full bg-slate-300" />
                       {user.first_name} {user.last_name}
                     </div>
                     <div className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
                   </div>
-                ))}
+                  </Link>
+                )})}
               </div>
             </div>
           </div>
@@ -87,18 +93,30 @@ export default async function ChatInterne({
         <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-white dark:bg-slate-950 z-10">
           <div className="flex items-center gap-3">
             <div className="h-8 w-8 rounded-lg bg-indigo-50 flex items-center justify-center">
-              <Hash className="h-4 w-4 text-indigo-600" />
+              {isDirectChannel ? <MessageCircle className="h-4 w-4 text-indigo-600" /> : <Hash className="h-4 w-4 text-indigo-600" />}
             </div>
             <div>
-              <h3 className="text-sm font-bold text-slate-900 dark:text-white"># {activeChannel?.name || "General"}</h3>
-              <p className="text-[10px] text-slate-400 font-medium italic">Communication globale de l'entreprise</p>
+              <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                {isDirectChannel ? activeChannel?.name.replace("DM - ", "") : `# ${activeChannel?.name || "General"}`}
+              </h3>
+              <p className="text-[10px] text-slate-400 font-medium italic">
+                {isDirectChannel ? "Message direct interne" : "Communication globale de l'entreprise"}
+              </p>
             </div>
           </div>
           <ChatSummaryDialog messages={channelMessages} />
         </div>
 
         <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-50/30">
-          {channelMessages.map((message) => (
+          {!activeChannel ? (
+            <div className="flex h-full items-center justify-center text-sm text-slate-400">
+              Creez un canal ou ajoutez un employe pour commencer une discussion.
+            </div>
+          ) : channelMessages.length === 0 ? (
+            <div className="flex h-full items-center justify-center text-sm text-slate-400">
+              Aucun message pour le moment.
+            </div>
+          ) : channelMessages.map((message) => (
             <div key={message.id} className={`flex gap-3 ${message.is_me ? "justify-end" : ""}`}>
               {!message.is_me && (
                 <div className="h-8 w-8 rounded-full bg-slate-200 shrink-0 flex items-center justify-center">
@@ -132,7 +150,7 @@ export default async function ChatInterne({
         <div className="p-4 bg-white dark:bg-slate-950 border-t border-slate-100 dark:border-slate-800">
           <ChatMessageComposer
             channelId={activeChannel?.id || ""}
-            channelName={activeChannel?.name || "General"}
+            channelName={isDirectChannel ? activeChannel?.name.replace("DM - ", "") || "message direct" : activeChannel?.name || "General"}
             action={sendMessage}
           />
         </div>

@@ -96,6 +96,25 @@ export type PaymentRecord = BaseRecord & {
   payment_method: string
 }
 
+export type SalaryPaymentRecord = BaseRecord & {
+  employee_id: string
+  amount: number
+  pay_period: string
+  payment_date: string
+  payment_method: string
+  status: string
+}
+
+export type AccountingEntryRecord = BaseRecord & {
+  entry_number: string
+  label: string
+  account_code: string
+  debit: number
+  credit: number
+  entry_date: string
+  source: string
+}
+
 export type ProductRecord = BaseRecord & {
   sku: string
   name: string
@@ -328,6 +347,8 @@ type ErpStore = {
   quotes: QuoteRecord[]
   invoices: InvoiceRecord[]
   payments: PaymentRecord[]
+  salary_payments: SalaryPaymentRecord[]
+  accounting_entries: AccountingEntryRecord[]
   products: ProductRecord[]
   purchase_orders: PurchaseOrderRecord[]
   warehouses: WarehouseRecord[]
@@ -582,6 +603,8 @@ function emptyStore(): ErpStore {
     quotes: [],
     invoices: [],
     payments: [],
+    salary_payments: [],
+    accounting_entries: [],
     products: [],
     purchase_orders: [],
     warehouses: [],
@@ -1328,6 +1351,8 @@ function mergeStore(target: ErpStore, source: ErpStore) {
   target.quotes.push(...source.quotes)
   target.invoices.push(...source.invoices)
   target.payments.push(...source.payments)
+  target.salary_payments.push(...source.salary_payments)
+  target.accounting_entries.push(...source.accounting_entries)
   target.products.push(...source.products)
   target.purchase_orders.push(...source.purchase_orders)
   target.warehouses.push(...source.warehouses)
@@ -1958,6 +1983,73 @@ export async function createPaymentData(formData: FormData) {
   await logAudit(ctx, "Enregistrement paiement", invoiceId)
 }
 
+export async function getSalaryPaymentsData() {
+  const ctx = await getDbContext()
+  const rows = (await selectSupabaseRows<SalaryPaymentRecord>(ctx, "salary_payments"))
+    ?? (await localRows(ctx, "salary_payments"))
+  const employees = await getEmployeesData()
+
+  return rows.map((payment) => ({
+    ...payment,
+    employee: employees.find((employee) => employee.id === payment.employee_id) ?? null,
+  }))
+}
+
+export async function createSalaryPaymentData(formData: FormData) {
+  const ctx = await getDbContext()
+  const employees = await getEmployeesData()
+  const employeeId = formText(formData, "employee_id", employees[0]?.id)
+  const employee = employees.find((item) => item.id === employeeId)
+  if (!employeeId || !employee) throw new Error("Creez d'abord un employe dans le module RH.")
+
+  const amount = formNumber(formData, "amount", employee.salary)
+  const paymentDate = formText(formData, "payment_date", todayIso())
+  const payPeriod = formText(
+    formData,
+    "pay_period",
+    new Date().toLocaleDateString("fr-FR", { month: "long", year: "numeric" }),
+  )
+  const record: SalaryPaymentRecord = {
+    id: id("salary_payment"),
+    organization_id: ctx.orgId,
+    employee_id: employeeId,
+    amount,
+    pay_period: payPeriod,
+    payment_date: paymentDate,
+    payment_method: formText(formData, "payment_method", "bank"),
+    status: formText(formData, "status", "paid"),
+    created_at: nowIso(),
+  }
+  const entry: AccountingEntryRecord = {
+    id: id("accounting_entry"),
+    organization_id: ctx.orgId,
+    entry_number: quoteNumber("EC"),
+    label: `Paiement salaire - ${employee.first_name} ${employee.last_name}`.trim(),
+    account_code: "641",
+    debit: amount,
+    credit: 0,
+    entry_date: paymentDate,
+    source: "salary_payment",
+    created_at: nowIso(),
+  }
+
+  if (!(await insertSupabaseRow(ctx, "salary_payments", record))) {
+    await mutateStore(ctx, (store) => store.salary_payments.unshift(record))
+  }
+
+  if (!(await insertSupabaseRow(ctx, "accounting_entries", entry))) {
+    await mutateStore(ctx, (store) => store.accounting_entries.unshift(entry))
+  }
+
+  await logAudit(ctx, "Paiement salaire", `${employee.first_name} ${employee.last_name}`.trim())
+}
+
+export async function getAccountingEntriesData() {
+  const ctx = await getDbContext()
+  return (await selectSupabaseRows<AccountingEntryRecord>(ctx, "accounting_entries"))
+    ?? (await localRows(ctx, "accounting_entries"))
+}
+
 export async function getProductsData() {
   const ctx = await getDbContext()
   const products = (await selectSupabaseRows<ProductRecord>(ctx, "products"))
@@ -2453,6 +2545,7 @@ export async function getChatData() {
   const messages = (await selectSupabaseRows<ChatMessageRecord>(ctx, "chat_messages", "created_at", true))
     ?? (await localRows(ctx, "chat_messages"))
   const users = await getEmployeesData()
+  const directChannels: ChatChannelRecord[] = []
 
   if (!channels.length) {
     const defaultChannel: ChatChannelRecord = {
@@ -2473,7 +2566,36 @@ export async function getChatData() {
     channels = [defaultChannel]
   }
 
-  return { channels, messages, users }
+  for (const user of users) {
+    const directChannelId = `dm_${ctx.orgId}_${user.id}`.replace(/[^a-zA-Z0-9_-]/g, "_")
+    const existingChannel = channels.find((channel) => channel.id === directChannelId)
+    const directChannel = existingChannel ?? {
+      id: directChannelId,
+      organization_id: ctx.orgId,
+      name: `DM - ${user.first_name} ${user.last_name}`.trim(),
+      created_at: nowIso(),
+    }
+
+    if (!existingChannel) {
+      if (!(await insertSupabaseRow(ctx, "chat_channels", directChannel))) {
+        await mutateStore(ctx, (store) => {
+          if (!store.chat_channels.some((channel) => channel.id === directChannel.id)) {
+            store.chat_channels.push(directChannel)
+          }
+        })
+      }
+      channels = [directChannel, ...channels]
+    }
+
+    directChannels.push(directChannel)
+  }
+
+  return {
+    channels: channels.filter((channel) => !channel.name.startsWith("DM - ")),
+    directChannels,
+    messages,
+    users,
+  }
 }
 
 export async function createChannelData(formData: FormData) {
