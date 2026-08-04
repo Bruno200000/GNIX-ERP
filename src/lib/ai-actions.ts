@@ -43,7 +43,8 @@ async function runOpenAICommand(command: string, dataSummary: string, apiKey: st
   })
 
   if (!response.ok) {
-    throw new Error("OpenAI a refuse la requete. Verifiez la cle API et le quota.")
+    const details = await response.text()
+    throw new Error(`OpenAI a refuse la requete (${response.status}). ${details.slice(0, 180)}`)
   }
 
   const payload = await response.json()
@@ -55,9 +56,13 @@ async function runOpenAICommand(command: string, dataSummary: string, apiKey: st
 
 export async function processAICommand(command: string) {
   const settings = await getSettingsData()
-  const provider = settings?.ai_provider || "gemini"
-  const openAiKey = settings?.openai_api_key || (provider === "openai" ? settings?.ai_api_key : "")
-  const geminiKey = provider === "gemini" ? settings?.ai_api_key || process.env.GEMINI_API_KEY : process.env.GEMINI_API_KEY
+  const configuredProvider = settings?.ai_provider || "gemini"
+  const rawAiKey = settings?.ai_api_key?.trim() || ""
+  const rawOpenAiKey = settings?.openai_api_key?.trim() || ""
+  const keyLooksOpenAI = rawAiKey.startsWith("sk-") || rawOpenAiKey.startsWith("sk-")
+  const provider = configuredProvider === "openai" || keyLooksOpenAI ? "openai" : "gemini"
+  const openAiKey = rawOpenAiKey || (keyLooksOpenAI ? rawAiKey : "")
+  const geminiKey = provider === "gemini" ? rawAiKey || process.env.GEMINI_API_KEY : process.env.GEMINI_API_KEY
   const apiKey = provider === "openai" ? openAiKey : geminiKey
   const dataSummary = await getAppDataSummary()
 
@@ -163,6 +168,11 @@ export async function processAICommand(command: string) {
     }
   } catch (err: any) {
     console.error(err)
-    return { message: "Le service IA est indisponible ou la cle API est invalide.", type: "error" }
+    return {
+      message: err?.message
+        ? `Le service IA est indisponible: ${err.message}`
+        : "Le service IA est indisponible ou la cle API est invalide.",
+      type: "error",
+    }
   }
 }

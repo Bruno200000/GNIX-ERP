@@ -19,6 +19,8 @@ export default async function SettingsPage({
   const notifications = settings?.notifications || {}
   const billingPlan = String(notifications.billing_plan || "unlimited")
   const billingCycle = String(notifications.billing_cycle || "monthly")
+  const aiKey = settings?.openai_api_key || settings?.ai_api_key || ""
+  const aiProviderLabel = settings?.ai_provider === "openai" || aiKey.startsWith("sk-") ? "OpenAI" : "Gemini"
 
   return (
     <div className="space-y-6">
@@ -123,9 +125,9 @@ export default async function SettingsPage({
               <CardContent>
                 <form action={saveSettings} className="space-y-6">
                 <input type="hidden" name="settings_section" value="ai" />
-                <div className={`rounded-xl border px-4 py-3 text-xs font-bold ${settings?.ai_api_key || settings?.openai_api_key ? "border-emerald-100 bg-emerald-50 text-emerald-700" : "border-amber-100 bg-amber-50 text-amber-700"}`}>
-                  {settings?.ai_api_key || settings?.openai_api_key
-                    ? `IA connectee via ${settings?.ai_provider === "openai" ? "OpenAI" : "Gemini"}. Les commandes et analyses utiliseront votre cle.`
+                <div className={`rounded-xl border px-4 py-3 text-xs font-bold ${aiKey ? "border-emerald-100 bg-emerald-50 text-emerald-700" : "border-amber-100 bg-amber-50 text-amber-700"}`}>
+                  {aiKey
+                    ? `IA connectee via ${aiProviderLabel}. Les commandes et analyses utiliseront votre cle.`
                     : "Mode local actif. Ajoutez une cle API reelle pour tester les analyses avancees."}
                 </div>
                 <div className="space-y-2">
@@ -144,11 +146,11 @@ export default async function SettingsPage({
                       type="password" 
                       name="ai_api_key"
                       defaultValue={settings?.ai_api_key || ""}
-                      placeholder="Laissez vide pour utiliser l'API gratuite integrée"
+                      placeholder="OpenAI: sk-... / Gemini: AIza..."
                       className="pl-10 rounded-xl"
                     />
                   </div>
-                  <p className="text-[10px] text-slate-500">Votre clé est stockée de manière sécurisée dans la base de données et n'est utilisée que par le backend.</p>
+                  <p className="text-[10px] text-slate-500">Si vous collez une cle OpenAI sk-..., GNIX IA utilisera automatiquement OpenAI. Une cle Gemini commence souvent par AIza.</p>
                 </div>
 
                 <div className="flex items-center justify-between py-4 border-t border-slate-100">

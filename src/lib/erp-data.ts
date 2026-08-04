@@ -3166,6 +3166,13 @@ export async function updateSettingsData(formData: FormData) {
   if (!settings) return
   const section = formText(formData, "settings_section", "all")
   const submitted = (target: string) => section === "all" || section === target
+  const submittedAiProvider = formText(formData, "ai_provider", settings.ai_provider)
+  const submittedAiKey = formText(formData, "ai_api_key", settings.ai_api_key)
+  const submittedOpenAiKey = formText(
+    formData,
+    "openai_api_key",
+    submittedAiProvider === "openai" ? submittedAiKey : settings.openai_api_key || "",
+  )
 
   const patch: Partial<AppSettingsRecord> = {
     language: formText(formData, "language", settings.language),
@@ -3173,9 +3180,9 @@ export async function updateSettingsData(formData: FormData) {
     auto_translate: submitted("general")
       ? formData.get("auto_translate") === "on"
       : settings.auto_translate,
-    ai_provider: formText(formData, "ai_provider", settings.ai_provider),
-    ai_api_key: formText(formData, "ai_api_key", settings.ai_api_key),
-    openai_api_key: formText(formData, "openai_api_key", settings.openai_api_key || settings.ai_api_key),
+    ai_provider: submittedAiProvider,
+    ai_api_key: submittedAiProvider === "openai" ? submittedOpenAiKey : submittedAiKey,
+    openai_api_key: submittedOpenAiKey,
     whatsapp_api_key: formText(formData, "whatsapp_api_key", settings.whatsapp_api_key),
     whatsapp_phone_number_id: formText(formData, "whatsapp_phone_number_id", settings.whatsapp_phone_number_id),
     whatsapp_business_account_id: formText(
