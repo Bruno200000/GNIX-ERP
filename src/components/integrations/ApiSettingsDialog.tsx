@@ -25,12 +25,16 @@ export function ApiSettingsDialog({
 }) {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState("")
 
   async function actionWrapper(formData: FormData) {
     setLoading(true)
+    setError("")
     try {
       await action(formData)
       setOpen(false)
+    } catch (e: any) {
+      setError(e.message || "Les parametres API n'ont pas pu etre enregistres.")
     } finally {
       setLoading(false)
     }
@@ -104,6 +108,12 @@ export function ApiSettingsDialog({
               </div>
             </div>
           </div>
+
+          {error && (
+            <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs font-bold text-red-600">
+              {error}
+            </div>
+          )}
 
           <DialogFooter className="pt-4">
             <Button type="button" variant="outline" className="rounded-xl" onClick={() => setOpen(false)}>Annuler</Button>

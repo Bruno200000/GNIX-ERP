@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
-import { Bell, Shield, User, Globe, Moon, CreditCard, Sparkles, Lock } from "lucide-react"
+import { Bell, Shield, User, Globe, Moon, CreditCard, Sparkles, Lock, CheckCircle2, Package } from "lucide-react"
 
 export default async function SettingsPage({
   searchParams,
@@ -16,6 +16,9 @@ export default async function SettingsPage({
   const activeTab = typeof params.tab === "string" ? params.tab : "general"
   const savedSection = typeof params.saved === "string" ? params.saved : ""
   const settings = await getAppSettings()
+  const notifications = settings?.notifications || {}
+  const billingPlan = String(notifications.billing_plan || "unlimited")
+  const billingCycle = String(notifications.billing_cycle || "monthly")
 
   return (
     <div className="space-y-6">
@@ -50,6 +53,20 @@ export default async function SettingsPage({
               <CardContent>
                 <form action={saveSettings} className="space-y-6">
                 <input type="hidden" name="settings_section" value="general" />
+                <div className="grid gap-3 rounded-xl border border-slate-100 bg-slate-50 p-4 text-xs font-bold text-slate-600 dark:border-slate-800 dark:bg-slate-900 md:grid-cols-3">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                    Langue active: {settings?.language === "en" ? "English" : "Francais"}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Moon className="h-4 w-4 text-indigo-500" />
+                    Theme: {settings?.dark_mode ? "Sombre" : "Clair"}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Globe className="h-4 w-4 text-blue-500" />
+                    Auto-traduction: {settings?.auto_translate === false ? "Inactive" : "Active"}
+                  </div>
+                </div>
                 <div className="space-y-2">
                   <Label htmlFor="language">Langue de l'interface</Label>
                   <div className="flex gap-4">
@@ -106,6 +123,11 @@ export default async function SettingsPage({
               <CardContent>
                 <form action={saveSettings} className="space-y-6">
                 <input type="hidden" name="settings_section" value="ai" />
+                <div className={`rounded-xl border px-4 py-3 text-xs font-bold ${settings?.ai_api_key || settings?.openai_api_key ? "border-emerald-100 bg-emerald-50 text-emerald-700" : "border-amber-100 bg-amber-50 text-amber-700"}`}>
+                  {settings?.ai_api_key || settings?.openai_api_key
+                    ? `IA connectee via ${settings?.ai_provider === "openai" ? "OpenAI" : "Gemini"}. Les commandes et analyses utiliseront votre cle.`
+                    : "Mode local actif. Ajoutez une cle API reelle pour tester les analyses avancees."}
+                </div>
                 <div className="space-y-2">
                   <Label htmlFor="provider">Fournisseur d'IA</Label>
                   <select name="ai_provider" defaultValue={settings?.ai_provider || "gemini"} className="flex h-10 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-600">
@@ -162,8 +184,8 @@ export default async function SettingsPage({
                   { key: "finance", name: "Finance", desc: "Retards de paiement ou factures a valider", icon: CreditCard },
                   { key: "security", name: "Securite", desc: "Nouvelles connexions ou anomalies detectees", icon: Shield },
                   { key: "tasks", name: "Rappels de Taches", desc: "Echeances de projets approchantes", icon: Bell },
+                  { key: "stock", name: "Stock", desc: "Ruptures et seuils critiques", icon: Package },
                 ].map((item) => {
-                  const notifications = settings?.notifications || {}
                   return (
                     <div key={item.key} className="flex items-center justify-between py-3 border-b border-slate-100 dark:border-slate-800 last:border-0">
                       <div className="flex items-center gap-3">
@@ -200,10 +222,57 @@ export default async function SettingsPage({
             <Card>
               <CardHeader>
                 <CardTitle>Securite</CardTitle>
-                <CardDescription>Les changements de mot de passe passent par Supabase Auth.</CardDescription>
+                <CardDescription>Renforcez les acces, les sessions et les alertes de securite.</CardDescription>
               </CardHeader>
-              <CardContent>
-                <form action={requestPasswordReset}>
+              <CardContent className="space-y-6">
+                <form action={saveSettings} className="space-y-4">
+                  <input type="hidden" name="settings_section" value="security" />
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="flex items-center justify-between rounded-xl border border-slate-100 p-4 dark:border-slate-800">
+                      <div>
+                        <div className="text-sm font-bold">Double authentification</div>
+                        <div className="text-xs text-slate-500">Demander un second facteur a la connexion.</div>
+                      </div>
+                      <Switch name="two_factor_enabled" defaultChecked={settings?.two_factor_enabled ?? false} />
+                    </div>
+                    <div className="flex items-center justify-between rounded-xl border border-slate-100 p-4 dark:border-slate-800">
+                      <div>
+                        <div className="text-sm font-bold">Alertes de connexion</div>
+                        <div className="text-xs text-slate-500">Notifier les nouvelles connexions.</div>
+                      </div>
+                      <Switch name="login_alerts" defaultChecked={notifications.login_alerts !== false} />
+                    </div>
+                    <div className="flex items-center justify-between rounded-xl border border-slate-100 p-4 dark:border-slate-800">
+                      <div>
+                        <div className="text-sm font-bold">Appareils approuves</div>
+                        <div className="text-xs text-slate-500">Bloquer les appareils inconnus jusqu'a validation.</div>
+                      </div>
+                      <Switch name="device_approval" defaultChecked={notifications.device_approval === true} />
+                    </div>
+                    <div className="rounded-xl border border-slate-100 p-4 dark:border-slate-800">
+                      <Label htmlFor="session_timeout">Expiration session</Label>
+                      <select id="session_timeout" name="session_timeout" defaultValue={String(notifications.session_timeout || "30")} className="mt-2 flex h-10 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-600">
+                        <option value="15">15 minutes</option>
+                        <option value="30">30 minutes</option>
+                        <option value="60">1 heure</option>
+                        <option value="240">4 heures</option>
+                      </select>
+                    </div>
+                    <div className="rounded-xl border border-slate-100 p-4 dark:border-slate-800 md:col-span-2">
+                      <Label htmlFor="audit_retention">Retention audit logs</Label>
+                      <select id="audit_retention" name="audit_retention" defaultValue={String(notifications.audit_retention || "90")} className="mt-2 flex h-10 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-600">
+                        <option value="30">30 jours</option>
+                        <option value="90">90 jours</option>
+                        <option value="365">1 an</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div className="flex justify-end">
+                    <Button className="bg-indigo-600 hover:bg-indigo-700" type="submit">Enregistrer la securite</Button>
+                  </div>
+                </form>
+                <form action={requestPasswordReset} className="rounded-xl border border-slate-100 p-4 dark:border-slate-800">
+                  <div className="mb-3 text-sm font-bold">Mot de passe</div>
                   <Button variant="outline" type="submit">Envoyer un lien de reinitialisation</Button>
                 </form>
               </CardContent>
@@ -217,7 +286,43 @@ export default async function SettingsPage({
                 <CardDescription>Votre plan et vos preferences de paiement.</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="rounded-xl border border-indigo-100 bg-indigo-50 p-4 text-sm font-bold text-indigo-700">Plan IA Unlimited actif</div>
+                <form action={saveSettings} className="space-y-6">
+                  <input type="hidden" name="settings_section" value="billing" />
+                  <div className="grid gap-4 md:grid-cols-3">
+                    {[
+                      { id: "starter", name: "Starter", price: "19 000 FCFA", desc: "CRM, factures et chat interne." },
+                      { id: "pro", name: "Pro", price: "49 000 FCFA", desc: "IA, marketplace et notifications avancees." },
+                      { id: "unlimited", name: "IA Unlimited", price: "99 000 FCFA", desc: "Tous les modules, analyses et support prioritaire." },
+                    ].map((plan) => (
+                      <label key={plan.id} className="cursor-pointer">
+                        <input className="peer sr-only" type="radio" name="billing_plan" value={plan.id} defaultChecked={billingPlan === plan.id} />
+                        <div className="h-full rounded-2xl border border-slate-200 p-5 transition-all peer-checked:border-indigo-600 peer-checked:bg-indigo-50 peer-checked:ring-2 peer-checked:ring-indigo-100 dark:border-slate-800">
+                          <div className="mb-2 flex items-center justify-between">
+                            <div className="font-black text-slate-900 dark:text-white">{plan.name}</div>
+                            {billingPlan === plan.id && <CheckCircle2 className="h-5 w-5 text-indigo-600" />}
+                          </div>
+                          <div className="text-2xl font-black text-indigo-600">{plan.price}</div>
+                          <div className="mt-2 text-xs text-slate-500">{plan.desc}</div>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="billing_cycle">Cycle de paiement</Label>
+                      <select id="billing_cycle" name="billing_cycle" defaultValue={billingCycle} className="flex h-10 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-600">
+                        <option value="monthly">Mensuel</option>
+                        <option value="yearly">Annuel (-15%)</option>
+                      </select>
+                    </div>
+                    <div className="rounded-xl border border-indigo-100 bg-indigo-50 p-4 text-sm font-bold text-indigo-700">
+                      Plan actif: {billingPlan === "starter" ? "Starter" : billingPlan === "pro" ? "Pro" : "IA Unlimited"} / {billingCycle === "yearly" ? "Annuel" : "Mensuel"}
+                    </div>
+                  </div>
+                  <div className="flex justify-end">
+                    <Button className="bg-indigo-600 hover:bg-indigo-700" type="submit">Mettre a jour le plan</Button>
+                  </div>
+                </form>
               </CardContent>
             </Card>
           </TabsContent>

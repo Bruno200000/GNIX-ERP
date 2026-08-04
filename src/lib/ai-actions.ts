@@ -19,9 +19,46 @@ async function getAppDataSummary() {
   `
 }
 
+async function runOpenAICommand(command: string, dataSummary: string, apiKey: string) {
+  const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "system",
+          content: "Tu es l'intelligence artificielle centrale de GNIX ERP. Reponds en francais, de maniere concise et operationnelle.",
+        },
+        {
+          role: "user",
+          content: `${dataSummary}\n\nInstruction utilisateur: ${command}`,
+        },
+      ],
+      temperature: 0.2,
+    }),
+  })
+
+  if (!response.ok) {
+    throw new Error("OpenAI a refuse la requete. Verifiez la cle API et le quota.")
+  }
+
+  const payload = await response.json()
+  return {
+    message: payload.choices?.[0]?.message?.content || "Analyse IA terminee.",
+    type: "ai_response",
+  }
+}
+
 export async function processAICommand(command: string) {
   const settings = await getSettingsData()
-  const apiKey = settings?.ai_api_key || process.env.GEMINI_API_KEY
+  const provider = settings?.ai_provider || "gemini"
+  const openAiKey = settings?.openai_api_key || (provider === "openai" ? settings?.ai_api_key : "")
+  const geminiKey = provider === "gemini" ? settings?.ai_api_key || process.env.GEMINI_API_KEY : process.env.GEMINI_API_KEY
+  const apiKey = provider === "openai" ? openAiKey : geminiKey
   const dataSummary = await getAppDataSummary()
 
   if (!apiKey) {
@@ -43,6 +80,10 @@ export async function processAICommand(command: string) {
   }
 
   try {
+    if (provider === "openai" && apiKey) {
+      return await runOpenAICommand(command, dataSummary, apiKey)
+    }
+
     const genAI = new GoogleGenerativeAI(apiKey)
     
     // Definition des outils (Tool Calling)

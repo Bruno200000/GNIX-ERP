@@ -131,6 +131,19 @@ export function Header({ notifications }: { notifications: AppNotificationRecord
   const unreadNotifications = notifications.filter((item) => !readNotificationIds.includes(item.id))
 
   useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem("gnix_read_notifications")
+      if (stored) setReadNotificationIds(JSON.parse(stored))
+    } catch {
+      setReadNotificationIds([])
+    }
+  }, [])
+
+  useEffect(() => {
+    window.localStorage.setItem("gnix_read_notifications", JSON.stringify(readNotificationIds))
+  }, [readNotificationIds])
+
+  useEffect(() => {
     const interval = window.setInterval(() => router.refresh(), 30000)
     return () => window.clearInterval(interval)
   }, [router])
@@ -302,7 +315,7 @@ export function Header({ notifications }: { notifications: AppNotificationRecord
               </div>
               <div className="border-t border-slate-100 p-3 dark:border-slate-800">
                 <Link
-                  href="/settings"
+                  href="/settings?tab=notifications"
                   onClick={() => setNotificationsOpen(false)}
                   className="flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-xs font-bold text-white hover:bg-indigo-600"
                 >
@@ -397,7 +410,7 @@ export function Header({ notifications }: { notifications: AppNotificationRecord
                 </Link>
 
                 <Link
-                  href="/settings"
+                  href="/settings?tab=billing"
                   onClick={() => setMenuOpen(false)}
                   className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors group"
                 >

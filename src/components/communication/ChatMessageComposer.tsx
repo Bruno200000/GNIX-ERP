@@ -27,8 +27,8 @@ export function ChatMessageComposer({
         await action(formData)
         formRef.current?.reset()
         setAttachmentName("")
-      } catch {
-        setError("Le message n'a pas pu etre envoye.")
+      } catch (e: any) {
+        setError(e.message || "Le message n'a pas pu etre envoye.")
       }
     })
   }

@@ -326,7 +326,7 @@ export type AppSettingsRecord = BaseRecord & {
   terminal_location?: string
   last_ai_analysis_at?: string
   ai_email_analysis: boolean
-  notifications: Record<string, boolean>
+  notifications: Record<string, JsonValue>
 }
 
 export type AppNotificationRecord = {
@@ -1380,10 +1380,6 @@ function mergeStore(target: ErpStore, source: ErpStore) {
 }
 
 async function readStore(): Promise<ErpStore> {
-  if (!shouldUseLocalSeedData()) {
-    return emptyStore()
-  }
-
   try {
     const raw = await readFile(dataFile, "utf8")
     return { ...emptyStore(), ...JSON.parse(raw) } as ErpStore
@@ -1393,10 +1389,6 @@ async function readStore(): Promise<ErpStore> {
 }
 
 async function writeStore(store: ErpStore) {
-  if (!shouldUseLocalSeedData()) {
-    return
-  }
-
   try {
     await mkdir(path.dirname(getDataFilePath()), { recursive: true })
     await writeFile(getDataFilePath(), JSON.stringify(store, null, 2), "utf8")
@@ -1598,10 +1590,6 @@ async function getDbContext(): Promise<DbContext> {
 
 async function readWorkspaceStore(ctx: DbContext) {
   const store = await readStore()
-
-  if (!shouldUseLocalSeedData()) {
-    return emptyStore()
-  }
 
   const hasOrganization = store.organizations.some((org) => org.id === ctx.orgId)
 
@@ -1818,7 +1806,7 @@ export async function getAppNotificationsData(): Promise<AppNotificationRecord[]
   }
 
   const lowStock = products.filter((product) => product.totalStock <= 10)
-  if (lowStock.length > 0) {
+  if (enabled.stock_push !== false && lowStock.length > 0) {
     notifications.push({
       id: "stock-low",
       category: "stock",
@@ -2540,6 +2528,46 @@ export async function getCommunicationsData() {
     ?? (await localRows(ctx, "communications"))
 }
 
+export async function rerunEmailAnalysisData() {
+  const ctx = await getDbContext()
+  const settings = await getSettingsData()
+  if (!settings?.ai_email_analysis) {
+    throw new Error("Activez d'abord l'analyse automatique des emails dans les parametres IA.")
+  }
+
+  const communications = (await selectSupabaseRows<CommunicationRecord>(ctx, "communications"))
+    ?? (await localRows(ctx, "communications"))
+  const emails = communications.filter((item) => item.type === "email")
+
+  for (const email of emails) {
+    const text = `${email.subject} ${email.summary}`.toLowerCase()
+    const patch: Partial<CommunicationRecord> = {
+      sentiment: text.includes("urgent") || text.includes("retard") || text.includes("probleme") ? "negative" : text.includes("merci") || text.includes("valid") ? "positive" : "neutral",
+      category: text.includes("facture") || text.includes("paiement") ? "Finance" : text.includes("devis") || text.includes("prix") || text.includes("remise") ? "Commercial" : "Support",
+      summary: email.summary.startsWith("[IA]") ? email.summary : `[IA] ${email.summary}`,
+    }
+
+    if (!(await updateSupabaseRow(ctx, "communications", email.id, patch as SupabaseRow))) {
+      await mutateStore(ctx, (store) => {
+        const row = store.communications.find((item) => item.id === email.id && item.organization_id === ctx.orgId)
+        if (row) Object.assign(row, patch)
+      })
+    }
+  }
+
+  if (settings) {
+    const patch: Partial<AppSettingsRecord> = { last_ai_analysis_at: nowIso() }
+    if (!(await updateSupabaseRow(ctx, "settings", settings.id, patch as SupabaseRow))) {
+      await mutateStore(ctx, (store) => {
+        const row = store.settings.find((item) => item.id === settings.id)
+        if (row) Object.assign(row, patch)
+      })
+    }
+  }
+
+  await logAudit(ctx, "Analyse automatique emails", `${emails.length} email(s)`)
+}
+
 export async function getCallsData() {
   const ctx = await getDbContext()
   return (await selectSupabaseRows<CallRecord>(ctx, "calls"))
@@ -2608,10 +2636,12 @@ export async function getChatData() {
 
 export async function createChannelData(formData: FormData) {
   const ctx = await getDbContext()
+  const channelName = formText(formData, "name", "nouveau-canal")
+  if (!channelName) throw new Error("Le nom du canal est obligatoire.")
   const record: ChatChannelRecord = {
     id: id("channel"),
     organization_id: ctx.orgId,
-    name: formText(formData, "name", "nouveau-canal"),
+    name: channelName,
     created_at: nowIso(),
   }
 
@@ -2622,14 +2652,17 @@ export async function createChannelData(formData: FormData) {
 
 export async function sendChatMessageData(formData: FormData) {
   const ctx = await getDbContext()
-  const { channels } = await getChatData()
+  const { channels, directChannels } = await getChatData()
+  const allChannels = [...channels, ...directChannels]
   const profile = await getProfileData()
   const attachment = await formAttachmentDataUrl(formData, "attachment")
   const content = formText(formData, "content")
+  const channelId = formText(formData, "channel_id", allChannels[0]?.id)
+  if (!channelId) throw new Error("Aucun canal de discussion disponible.")
   const record: ChatMessageRecord = {
     id: id("message"),
     organization_id: ctx.orgId,
-    channel_id: formText(formData, "channel_id", channels[0]?.id),
+    channel_id: channelId,
     author: profile ? `${profile.first_name} ${profile.last_name}`.trim() || profile.email : ctx.email.split("@")[0],
     content: content || (attachment ? `Piece jointe: ${attachment.name}` : ""),
     sent_at: new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }),
@@ -2765,6 +2798,7 @@ export async function updateIntegrationCredentialsData(formData: FormData) {
 
   const integrationId = formText(formData, "integration_id")
   const patch: Partial<AppSettingsRecord> = {}
+  const genericApiKey = formText(formData, "api_key")
 
   if (integrationId === "catalog-whatsapp") {
     patch.whatsapp_api_key = formText(formData, "whatsapp_api_key", settings.whatsapp_api_key)
@@ -2782,9 +2816,11 @@ export async function updateIntegrationCredentialsData(formData: FormData) {
     patch.ai_api_key = patch.openai_api_key
   }
 
-  if (!Object.keys(patch).length) return
+  if (!Object.keys(patch).length && !genericApiKey) {
+    throw new Error("Ajoutez une cle API pour connecter cette application.")
+  }
 
-  if (!(await updateSupabaseRow(ctx, "settings", settings.id, patch as SupabaseRow))) {
+  if (Object.keys(patch).length && !(await updateSupabaseRow(ctx, "settings", settings.id, patch as SupabaseRow))) {
     await mutateStore(ctx, (store) => {
       const row = store.settings.find((item) => item.id === settings.id)
       if (row) Object.assign(row, patch)
@@ -2794,6 +2830,9 @@ export async function updateIntegrationCredentialsData(formData: FormData) {
   const overrides = await readIntegrationOverrides()
   overrides[integrationId] = "connected"
   await writeIntegrationOverrides(overrides)
+  if (ctx.isSupabaseWorkspaceReady) {
+    await updateSupabaseRow(ctx, "integrations", integrationId, { status: "connected" })
+  }
   await logAudit(ctx, "Cle API connectee", integrationId)
 }
 
@@ -3163,6 +3202,13 @@ export async function updateSettingsData(formData: FormData) {
       finance_push: submitted("notifications") ? formData.get("finance_push") === "on" : settings.notifications?.finance_push ?? false,
       security_push: submitted("notifications") ? formData.get("security_push") === "on" : settings.notifications?.security_push ?? false,
       tasks_push: submitted("notifications") ? formData.get("tasks_push") === "on" : settings.notifications?.tasks_push ?? false,
+      stock_push: submitted("notifications") ? formData.get("stock_push") === "on" : settings.notifications?.stock_push ?? true,
+      login_alerts: submitted("security") ? formData.get("login_alerts") === "on" : settings.notifications?.login_alerts ?? true,
+      device_approval: submitted("security") ? formData.get("device_approval") === "on" : settings.notifications?.device_approval ?? false,
+      session_timeout: submitted("security") ? formText(formData, "session_timeout", String(settings.notifications?.session_timeout || "30")) : settings.notifications?.session_timeout ?? "30",
+      audit_retention: submitted("security") ? formText(formData, "audit_retention", String(settings.notifications?.audit_retention || "90")) : settings.notifications?.audit_retention ?? "90",
+      billing_plan: submitted("billing") ? formText(formData, "billing_plan", String(settings.notifications?.billing_plan || "unlimited")) : settings.notifications?.billing_plan ?? "unlimited",
+      billing_cycle: submitted("billing") ? formText(formData, "billing_cycle", String(settings.notifications?.billing_cycle || "monthly")) : settings.notifications?.billing_cycle ?? "monthly",
     },
   }
 

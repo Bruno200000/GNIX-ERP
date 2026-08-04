@@ -1,4 +1,4 @@
-import { getCommunicationsData, getIntegrationsData, getSettingsData, updateAutoResponseData } from "@/lib/erp-data"
+import { getCommunicationsData, getIntegrationsData, getSettingsData, rerunEmailAnalysisData, updateAutoResponseData } from "@/lib/erp-data"
 import { revalidatePath } from "next/cache"
 import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -21,6 +21,14 @@ export default async function CommunicationHub({
     "use server"
     await updateAutoResponseData(formData)
     revalidatePath("/communication")
+  }
+
+  async function rerunEmailAnalysis() {
+    "use server"
+    await rerunEmailAnalysisData()
+    revalidatePath("/communication")
+    revalidatePath("/analytics")
+    revalidatePath("/", "layout")
   }
 
   const [allThreads, integrations, settings] = await Promise.all([
@@ -63,6 +71,11 @@ export default async function CommunicationHub({
           </p>
         </div>
         <div className="flex gap-2">
+          <form action={rerunEmailAnalysis}>
+            <Button variant="outline" className="gap-2" type="submit" disabled={settings?.ai_email_analysis === false}>
+              <Sparkles className="h-4 w-4" /> Analyser emails
+            </Button>
+          </form>
           <Link href="/communication">
             <Button variant="outline" className="gap-2">
               <Filter className="h-4 w-4" /> Effacer Filtres

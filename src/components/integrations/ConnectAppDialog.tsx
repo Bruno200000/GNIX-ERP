@@ -19,13 +19,17 @@ export function ConnectAppDialog({
 }) {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState("")
 
   async function actionWrapper(formData: FormData) {
     setLoading(true)
+    setError("")
     try {
       formData.append("integration_id", appId)
       await action(formData)
       setOpen(false)
+    } catch (e: any) {
+      setError(e.message || "La connexion a echoue. Verifiez vos identifiants API.")
     } finally {
       setLoading(false)
     }
@@ -68,6 +72,12 @@ export function ConnectAppDialog({
             <div className="space-y-2">
               <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Cle API (API Key)</label>
               <Input name="api_key" type="password" required placeholder="sk_live_..." className="rounded-xl font-mono" />
+            </div>
+          )}
+
+          {error && (
+            <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs font-bold text-red-600">
+              {error}
             </div>
           )}
 
