@@ -180,3 +180,15 @@
     animation: none;
   }
 }
+
+.gnix-actions-locked form button[type="submit"],
+.gnix-actions-locked form input[type="submit"],
+.gnix-actions-locked form button:not([data-allow-offline-actions="true"]) {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.gnix-actions-locked form:not([data-allow-offline-actions="true"]) button[type="submit"],
+.gnix-actions-locked form:not([data-allow-offline-actions="true"]) input[type="submit"] {
+  pointer-events: none;
+}

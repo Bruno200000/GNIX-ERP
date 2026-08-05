@@ -23,7 +23,7 @@ export default async function DashboardLayout({
 
   return (
     <UIProvider>
-      <SettingsRuntimeEffects settings={settings} />
+      <SettingsRuntimeEffects settings={settings} connectionDegraded={!access.isCloudConnected} />
       <div className="flex h-full w-full overflow-hidden">
         <Sidebar organizationCategory={organizationCategory} />
         <div className="flex flex-1 flex-col overflow-hidden">

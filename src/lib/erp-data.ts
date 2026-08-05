@@ -400,6 +400,17 @@ const addDaysIso = (days: number) => {
 
 const id = (prefix: string) => `${prefix}_${randomUUID()}`
 
+async function withSupabaseTimeout<T>(operation: PromiseLike<T>, fallback: unknown, timeoutMs = 1800): Promise<T> {
+  try {
+    return await Promise.race([
+      operation,
+      new Promise<T>((resolve) => setTimeout(() => resolve(fallback as T), timeoutMs)),
+    ])
+  } catch {
+    return fallback as T
+  }
+}
+
 async function readIntegrationOverrides(): Promise<IntegrationStatusMap> {
   try {
     const raw = await readFile(integrationOverridesFile, "utf8")
@@ -1477,11 +1488,14 @@ async function getDbContext(): Promise<DbContext> {
   }
 
   try {
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("organization_id, first_name, last_name, email, role, is_active")
-      .eq("id", user.id)
-      .maybeSingle()
+    const { data: profile } = await withSupabaseTimeout(
+      supabase
+        .from("profiles")
+        .select("organization_id, first_name, last_name, email, role, is_active")
+        .eq("id", user.id)
+        .maybeSingle(),
+      { data: null, error: new Error("Connexion Supabase indisponible") },
+    )
 
     const profileOrgId =
       profile && typeof profile.organization_id === "string" ? profile.organization_id : null
@@ -1503,7 +1517,10 @@ async function getDbContext(): Promise<DbContext> {
 
     const emailDomain = email.includes("@") ? email.split("@")[1] : null
     const { data: existingOrganization } = emailDomain
-      ? await supabase.from("organizations").select("*").eq("domain", emailDomain).maybeSingle()
+      ? await withSupabaseTimeout(
+          supabase.from("organizations").select("*").eq("domain", emailDomain).maybeSingle(),
+          { data: null, error: new Error("Connexion Supabase indisponible") },
+        )
       : { data: null }
 
     if (existingOrganization && typeof existingOrganization.id === "string") {
@@ -1519,7 +1536,10 @@ async function getDbContext(): Promise<DbContext> {
         created_at: nowIso(),
       }
 
-      const { error: pendingProfileError } = await supabase.from("profiles").upsert([pendingProfile])
+      const { error: pendingProfileError } = await withSupabaseTimeout(
+        supabase.from("profiles").upsert([pendingProfile]),
+        { data: null, error: new Error("Connexion Supabase indisponible") },
+      )
       if (pendingProfileError) throw pendingProfileError
 
       return {
@@ -1544,7 +1564,10 @@ async function getDbContext(): Promise<DbContext> {
       created_at: nowIso(),
     }
 
-    const { error: orgError } = await supabase.from("organizations").insert([organization])
+    const { error: orgError } = await withSupabaseTimeout(
+      supabase.from("organizations").insert([organization]),
+      { data: null, error: new Error("Connexion Supabase indisponible") },
+    )
     if (orgError) throw orgError
 
     const profilePayload: ProfileRecord = {
@@ -1559,7 +1582,10 @@ async function getDbContext(): Promise<DbContext> {
       created_at: nowIso(),
     }
 
-    const { error: profileError } = await supabase.from("profiles").upsert([profilePayload])
+    const { error: profileError } = await withSupabaseTimeout(
+      supabase.from("profiles").upsert([profilePayload]),
+      { data: null, error: new Error("Connexion Supabase indisponible") },
+    )
     if (profileError) throw profileError
 
     return {
@@ -1609,11 +1635,14 @@ async function selectSupabaseRows<T extends BaseRecord>(
 ): Promise<T[] | null> {
   if (!ctx.isSupabaseWorkspaceReady) return null
 
-  const { data, error } = await ctx.supabase
-    .from(table)
-    .select("*")
-    .eq("organization_id", ctx.orgId)
-    .order(orderBy, { ascending })
+  const { data, error } = await withSupabaseTimeout(
+    ctx.supabase
+      .from(table)
+      .select("*")
+      .eq("organization_id", ctx.orgId)
+      .order(orderBy, { ascending }),
+    { data: null, error: new Error("Connexion Supabase indisponible") },
+  )
 
   if (error || !data) return null
   return data as T[]
@@ -1621,17 +1650,23 @@ async function selectSupabaseRows<T extends BaseRecord>(
 
 async function insertSupabaseRow<T extends BaseRecord>(ctx: DbContext, table: string, row: T) {
   if (!ctx.isSupabaseWorkspaceReady) return false
-  const { error } = await ctx.supabase.from(table).insert([row])
+  const { error } = await withSupabaseTimeout(
+    ctx.supabase.from(table).insert([row]),
+    { data: null, error: new Error("Connexion Supabase indisponible") },
+  )
   return !error
 }
 
 async function updateSupabaseRow(ctx: DbContext, table: string, recordId: string, patch: SupabaseRow) {
   if (!ctx.isSupabaseWorkspaceReady) return false
-  const { error } = await ctx.supabase
-    .from(table)
-    .update(patch)
-    .eq("id", recordId)
-    .eq("organization_id", ctx.orgId)
+  const { error } = await withSupabaseTimeout(
+    ctx.supabase
+      .from(table)
+      .update(patch)
+      .eq("id", recordId)
+      .eq("organization_id", ctx.orgId),
+    { data: null, error: new Error("Connexion Supabase indisponible") },
+  )
   return !error
 }
 
@@ -2939,16 +2974,22 @@ export async function getOrganizationData() {
   const ctx = await getDbContext()
 
   if (ctx.isSupabaseWorkspaceReady) {
-    const { data: org } = await ctx.supabase
-      .from("organizations")
-      .select("*")
-      .eq("id", ctx.orgId)
-      .maybeSingle()
-    const { data: members } = await ctx.supabase
-      .from("profiles")
-      .select("*")
-      .eq("organization_id", ctx.orgId)
-      .order("created_at", { ascending: true })
+    const { data: org } = await withSupabaseTimeout(
+      ctx.supabase
+        .from("organizations")
+        .select("*")
+        .eq("id", ctx.orgId)
+        .maybeSingle(),
+      { data: null, error: new Error("Connexion Supabase indisponible") },
+    )
+    const { data: members } = await withSupabaseTimeout(
+      ctx.supabase
+        .from("profiles")
+        .select("*")
+        .eq("organization_id", ctx.orgId)
+        .order("created_at", { ascending: true }),
+      { data: null, error: new Error("Connexion Supabase indisponible") },
+    )
 
     if (org) return { ...(org as OrganizationRecord), members: (members ?? []) as ProfileRecord[] }
   }
@@ -2978,7 +3019,10 @@ export async function getProfileData() {
   const ctx = await getDbContext()
   const profiles = await localRows(ctx, "profiles")
   if (ctx.isSupabaseWorkspaceReady) {
-    const { data: profile } = await ctx.supabase.from("profiles").select("*").eq("id", ctx.userId).maybeSingle()
+    const { data: profile } = await withSupabaseTimeout(
+      ctx.supabase.from("profiles").select("*").eq("id", ctx.userId).maybeSingle(),
+      { data: null, error: new Error("Connexion Supabase indisponible") },
+    )
     if (profile) return profile as ProfileRecord
   }
   const localProfile = profiles.find((profile) => profile.id === ctx.userId) ?? profiles[0]
@@ -3008,7 +3052,10 @@ export async function updateProfileData(formData: FormData) {
   }
 
   const updated = ctx.isSupabaseWorkspaceReady
-    ? !(await ctx.supabase.from("profiles").update(patch).eq("id", ctx.userId)).error
+    ? !(await withSupabaseTimeout(
+        ctx.supabase.from("profiles").update(patch).eq("id", ctx.userId),
+        { data: null, error: new Error("Connexion Supabase indisponible") },
+      )).error
     : false
 
   if (!updated) {
@@ -3107,6 +3154,7 @@ export async function getCurrentAccessData() {
     email: ctx.email,
     isActive: ctx.isActive,
     role: ctx.role,
+    isCloudConnected: ctx.isSupabaseWorkspaceReady,
   }
 }
 
