@@ -1,38 +1,8 @@
 'use client'
 
-import { useMemo, useState } from "react"
 import Link from "next/link"
 import { ArrowRight, CheckCircle2, Globe2 } from "lucide-react"
-
-type CurrencyCode = "XOF" | "EUR" | "USD" | "CAD"
-
-const currencies: Record<CurrencyCode, { label: string; symbol: string; rateFromXof: number; locale: string }> = {
-  XOF: { label: "Franc CFA", symbol: "f", rateFromXof: 1, locale: "fr-FR" },
-  EUR: { label: "Euro", symbol: "EUR", rateFromXof: 1 / 655.957, locale: "fr-FR" },
-  USD: { label: "Dollar US", symbol: "USD", rateFromXof: 0.001734, locale: "en-US" },
-  CAD: { label: "Dollar canadien", symbol: "CAD", rateFromXof: 0.002444, locale: "en-CA" },
-}
-
-const countries = [
-  { name: "Cote d'Ivoire", currency: "XOF" },
-  { name: "Senegal", currency: "XOF" },
-  { name: "Benin", currency: "XOF" },
-  { name: "Burkina Faso", currency: "XOF" },
-  { name: "Mali", currency: "XOF" },
-  { name: "Niger", currency: "XOF" },
-  { name: "Togo", currency: "XOF" },
-  { name: "France", currency: "EUR" },
-  { name: "Belgique", currency: "EUR" },
-  { name: "Allemagne", currency: "EUR" },
-  { name: "Italie", currency: "EUR" },
-  { name: "Espagne", currency: "EUR" },
-  { name: "Etats-Unis", currency: "USD" },
-  { name: "Canada", currency: "CAD" },
-  { name: "Royaume-Uni", currency: "USD" },
-  { name: "Maroc", currency: "USD" },
-  { name: "Ghana", currency: "USD" },
-  { name: "Nigeria", currency: "USD" },
-] satisfies { name: string; currency: CurrencyCode }[]
+import { currencies, CurrencyCode, useLandingCurrency } from "./LandingCurrencyProvider"
 
 const plans = [
   {
@@ -76,13 +46,7 @@ function formatPrice(amountXof: number | null, currency: CurrencyCode) {
 }
 
 export function PricingPlans() {
-  const [country, setCountry] = useState(countries[0].name)
-  const [currency, setCurrency] = useState<CurrencyCode>("XOF")
-
-  const selectedCountry = useMemo(
-    () => countries.find((item) => item.name === country) ?? countries[0],
-    [country]
-  )
+  const { currency, selectedCountry } = useLandingCurrency()
 
   return (
     <section id="tarifs" className="bg-[#f7f8f4] py-20">
@@ -95,40 +59,10 @@ export function PricingPlans() {
             </h2>
           </div>
 
-          <div className="grid gap-3 rounded-md border border-[#dfe7df] bg-white p-4 shadow-sm sm:grid-cols-2 lg:min-w-[460px]">
-            <label className="grid gap-2 text-xs font-black uppercase tracking-[0.14em] text-[#52615b]">
-              Pays
-              <select
-                value={country}
-                onChange={(event) => {
-                  const nextCountry = countries.find((item) => item.name === event.target.value) ?? countries[0]
-                  setCountry(nextCountry.name)
-                  setCurrency(nextCountry.currency)
-                }}
-                className="h-11 rounded-md border border-[#ccd8d0] bg-[#fbfcf8] px-3 text-sm font-bold normal-case tracking-normal text-[#17201d] outline-none focus:border-[#0f5f55]"
-              >
-                {countries.map((item) => (
-                  <option key={item.name} value={item.name}>{item.name}</option>
-                ))}
-              </select>
-            </label>
-
-            <label className="grid gap-2 text-xs font-black uppercase tracking-[0.14em] text-[#52615b]">
-              Devise
-              <select
-                value={currency}
-                onChange={(event) => setCurrency(event.target.value as CurrencyCode)}
-                className="h-11 rounded-md border border-[#ccd8d0] bg-[#fbfcf8] px-3 text-sm font-bold normal-case tracking-normal text-[#17201d] outline-none focus:border-[#0f5f55]"
-              >
-                {Object.entries(currencies).map(([code, config]) => (
-                  <option key={code} value={code}>{config.label}</option>
-                ))}
-              </select>
-            </label>
-
-            <div className="flex items-center gap-2 text-xs font-bold text-[#5b6862] sm:col-span-2">
+          <div className="rounded-md border border-[#dfe7df] bg-white p-4 text-xs font-bold text-[#5b6862] shadow-sm lg:min-w-[360px]">
+            <div className="flex items-center gap-2">
               <Globe2 className="size-4 text-[#0f5f55]" />
-              {selectedCountry.name} affiche les prix en {currencies[currency].label}. Conversion instantanee indicative.
+              {selectedCountry.name} affiche les prix en {currencies[currency].label}. Modifiez le pays ou la devise dans la barre de navigation.
             </div>
           </div>
         </div>

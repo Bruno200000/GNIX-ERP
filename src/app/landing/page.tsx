@@ -17,6 +17,8 @@ import {
 } from "lucide-react"
 import { requestQuote } from "./actions"
 import { PricingPlans } from "@/components/landing/PricingPlans"
+import { LandingCurrencyControls } from "@/components/landing/LandingCurrencyControls"
+import { LandingCurrencyProvider } from "@/components/landing/LandingCurrencyProvider"
 
 const modules = [
   { icon: BarChart3, label: "Finance", text: "Suivi des revenus, paiements, bilan et anomalies." },
@@ -34,9 +36,10 @@ export default async function LandingPage({
   const sent = params.sent === "1"
 
   return (
+    <LandingCurrencyProvider>
     <main className="min-h-screen bg-[#f7f8f4] text-[#17201d]">
       <nav className="fixed inset-x-0 top-0 z-50 border-b border-white/35 bg-[#f7f8f4]/90 backdrop-blur-xl">
-        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
+        <div className="mx-auto flex min-h-16 max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:flex-nowrap lg:px-8">
           <Link href="/landing" className="flex items-center gap-3">
             <Image src="/logo.png" alt="GNIX ERP" width={36} height={36} className="rounded-md" priority />
             <span className="text-sm font-black tracking-[0.22em] text-[#111814]">GNIX ERP</span>
@@ -46,7 +49,8 @@ export default async function LandingPage({
             <a href="#tarifs" className="hover:text-[#0f5f55]">Tarifs</a>
             <a href="#devis" className="hover:text-[#0f5f55]">Devis</a>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="order-3 flex w-full items-center justify-between gap-2 lg:order-none lg:w-auto lg:justify-end">
+            <LandingCurrencyControls />
             <Link href="/login" className="rounded-md px-4 py-2 text-sm font-bold text-[#17201d] hover:bg-white">
               Connexion
             </Link>
@@ -57,7 +61,7 @@ export default async function LandingPage({
         </div>
       </nav>
 
-      <section className="relative min-h-[92vh] overflow-hidden pt-16">
+      <section className="relative min-h-[92vh] overflow-hidden pt-24 lg:pt-16">
         <Image
           src="/gnix-erp-hero.png"
           alt="Apercu professionnel du logiciel GNIX ERP"
@@ -224,5 +228,6 @@ export default async function LandingPage({
         </div>
       </section>
     </main>
+    </LandingCurrencyProvider>
   )
 }
