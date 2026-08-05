@@ -1,8 +1,7 @@
 'use client'
 
 import { signup } from '../login/actions'
-import { useState } from 'react'
-import Image from 'next/image'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -12,6 +11,12 @@ import { Building2, User, Mail, Lock, ArrowLeft } from "lucide-react"
 export default function RegisterPage() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [selectedPlan, setSelectedPlan] = useState("")
+
+  useEffect(() => {
+    const plan = new URLSearchParams(window.location.search).get("plan")
+    setSelectedPlan(plan || "")
+  }, [])
 
   async function handleSubmit(formData: FormData) {
     setLoading(true)
@@ -42,9 +47,15 @@ export default function RegisterPage() {
           <div>
             <h1 className="text-3xl font-extrabold text-[#1a1a1a]">Créer votre espace ERP</h1>
             <p className="mt-2 text-slate-500 font-medium">Rejoignez GNIX ERP et commencez à gérer votre entreprise intelligemment.</p>
+            {selectedPlan ? (
+              <div className="mt-4 rounded-xl border border-[#2189C7]/20 bg-[#2189C7]/10 px-4 py-3 text-sm font-bold text-[#1a6e9f]">
+                Plan selectionne: {selectedPlan === "professionnel" ? "Professionnel - 200000f" : "Essentiel - 100000f"}
+              </div>
+            ) : null}
           </div>
 
           <form action={handleSubmit} className="space-y-6">
+            <input type="hidden" name="billing_plan" value={selectedPlan} />
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="company_name" className="text-sm font-bold text-[#333] ml-1">Nom de l'Entreprise</Label>

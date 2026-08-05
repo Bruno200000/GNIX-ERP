@@ -3168,6 +3168,8 @@ export async function updateSettingsData(formData: FormData) {
   const submitted = (target: string) => section === "all" || section === target
   const submittedAiProvider = formText(formData, "ai_provider", settings.ai_provider)
   const submittedAiKey = formText(formData, "ai_api_key", settings.ai_api_key)
+  const submittedAiBaseUrl = formText(formData, "ai_base_url", String(settings.notifications?.ai_base_url || ""))
+  const submittedAiModel = formText(formData, "ai_model", String(settings.notifications?.ai_model || ""))
   const submittedOpenAiKey = formText(
     formData,
     "openai_api_key",
@@ -3216,6 +3218,8 @@ export async function updateSettingsData(formData: FormData) {
       audit_retention: submitted("security") ? formText(formData, "audit_retention", String(settings.notifications?.audit_retention || "90")) : settings.notifications?.audit_retention ?? "90",
       billing_plan: submitted("billing") ? formText(formData, "billing_plan", String(settings.notifications?.billing_plan || "unlimited")) : settings.notifications?.billing_plan ?? "unlimited",
       billing_cycle: submitted("billing") ? formText(formData, "billing_cycle", String(settings.notifications?.billing_cycle || "monthly")) : settings.notifications?.billing_cycle ?? "monthly",
+      ai_base_url: submitted("ai") ? submittedAiBaseUrl : settings.notifications?.ai_base_url ?? "",
+      ai_model: submitted("ai") ? submittedAiModel : settings.notifications?.ai_model ?? "",
     },
   }
 

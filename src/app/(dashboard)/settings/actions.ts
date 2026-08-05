@@ -38,6 +38,7 @@ export async function saveOrganization(formData: FormData) {
   await updateOrganizationData(formData)
   revalidatePath('/settings/organisation')
   revalidatePath('/organisations')
+  revalidatePath('/', 'layout')
 }
 
 export async function saveSettings(formData: FormData) {

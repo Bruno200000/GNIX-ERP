@@ -128,5 +128,55 @@
   }
   html {
     @apply font-sans;
+    scroll-behavior: smooth;
+  }
+}
+
+@keyframes gnix-rise {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes gnix-float {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+@keyframes gnix-marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-gnix-rise {
+  animation: gnix-rise 720ms ease-out both;
+}
+
+.animate-gnix-float {
+  animation: gnix-float 4.8s ease-in-out infinite;
+}
+
+.animate-gnix-marquee {
+  animation: gnix-marquee 22s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-gnix-rise,
+  .animate-gnix-float,
+  .animate-gnix-marquee {
+    animation: none;
   }
 }

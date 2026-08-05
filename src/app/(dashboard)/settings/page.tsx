@@ -20,7 +20,15 @@ export default async function SettingsPage({
   const billingPlan = String(notifications.billing_plan || "unlimited")
   const billingCycle = String(notifications.billing_cycle || "monthly")
   const aiKey = settings?.openai_api_key || settings?.ai_api_key || ""
-  const aiProviderLabel = settings?.ai_provider === "openai" || aiKey.startsWith("sk-") ? "OpenAI" : "Gemini"
+  const aiProviderLabel = settings?.ai_provider === "openrouter" || aiKey.startsWith("sk-or-")
+    ? "OpenRouter"
+    : settings?.ai_provider === "kimi"
+      ? "Kimi"
+      : settings?.ai_provider === "custom"
+        ? "Modele compatible"
+        : settings?.ai_provider === "openai" || aiKey.startsWith("sk-") ? "OpenAI" : "Gemini"
+  const aiBaseUrl = String(notifications.ai_base_url || "")
+  const aiModel = String(notifications.ai_model || "")
 
   return (
     <div className="space-y-6">
@@ -135,22 +143,68 @@ export default async function SettingsPage({
                   <select name="ai_provider" defaultValue={settings?.ai_provider || "gemini"} className="flex h-10 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-600">
                     <option value="gemini">Google Gemini (Recommande)</option>
                     <option value="openai">OpenAI (ChatGPT)</option>
+                    <option value="openrouter">OpenRouter Free Models</option>
+                    <option value="kimi">Kimi / Moonshot</option>
+                    <option value="custom">Autre modele compatible OpenAI</option>
                   </select>
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="ai_api_key">Clé API (Gemini ou OpenAI)</Label>
+                  <Label htmlFor="ai_api_key">Cle API du fournisseur</Label>
                   <div className="relative">
                     <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                     <Input 
                       type="password" 
                       name="ai_api_key"
                       defaultValue={settings?.ai_api_key || ""}
-                      placeholder="OpenAI: sk-... / Gemini: AIza..."
+                      placeholder="OpenRouter: sk-or-... / Kimi: cle Moonshot / Gemini: AIza..."
                       className="pl-10 rounded-xl"
                     />
                   </div>
-                  <p className="text-[10px] text-slate-500">Si vous collez une cle OpenAI sk-..., GNIX IA utilisera automatiquement OpenAI. Une cle Gemini commence souvent par AIza.</p>
+                  <p className="text-[10px] text-slate-500">OpenRouter propose des modeles gratuits via openrouter/free. Kimi utilise l'API Moonshot compatible OpenAI.</p>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="ai_base_url">Base URL API compatible OpenAI</Label>
+                    <Input
+                      id="ai_base_url"
+                      name="ai_base_url"
+                      defaultValue={aiBaseUrl}
+                      placeholder="Optionnel: https://api.moonshot.ai/v1"
+                      className="rounded-xl font-mono text-xs"
+                    />
+                    <p className="text-[10px] text-slate-500">Laissez vide pour utiliser le preset du fournisseur choisi.</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="ai_model">Modele</Label>
+                    <Input
+                      id="ai_model"
+                      name="ai_model"
+                      defaultValue={aiModel}
+                      placeholder="openrouter/free ou moonshot-v1-8k"
+                      className="rounded-xl font-mono text-xs"
+                    />
+                    <p className="text-[10px] text-slate-500">Laissez vide pour utiliser le modele par defaut du preset.</p>
+                  </div>
+                </div>
+
+                <div className="grid gap-3 rounded-xl border border-slate-100 bg-white p-4 text-xs text-slate-600 md:grid-cols-3">
+                  <div>
+                    <div className="font-black text-slate-900">OpenRouter gratuit</div>
+                    <div>Base URL: https://openrouter.ai/api/v1</div>
+                    <div>Modele: openrouter/free</div>
+                  </div>
+                  <div>
+                    <div className="font-black text-slate-900">Kimi</div>
+                    <div>Base URL: https://api.moonshot.ai/v1</div>
+                    <div>Modele: moonshot-v1-8k</div>
+                  </div>
+                  <div>
+                    <div className="font-black text-slate-900">Personnalise</div>
+                    <div>Compatible: /chat/completions</div>
+                    <div>Ex: Groq, Together, proxy local</div>
+                  </div>
                 </div>
 
                 <div className="flex items-center justify-between py-4 border-t border-slate-100">

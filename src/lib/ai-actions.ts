@@ -1,7 +1,7 @@
 'use server'
 
 import { GoogleGenerativeAI, FunctionDeclaration, SchemaType, Tool } from "@google/generative-ai"
-import { getDashboardData, getProductsData, getSettingsData, createTicketData, createClientData, createProductData } from "@/lib/erp-data"
+import { getDashboardData, getProductsData, getSettingsData, createTicketData, createClientData } from "@/lib/erp-data"
 
 async function getAppDataSummary() {
   const [dashboard, products] = await Promise.all([getDashboardData(), getProductsData()])
@@ -19,15 +19,30 @@ async function getAppDataSummary() {
   `
 }
 
-async function runOpenAICommand(command: string, dataSummary: string, apiKey: string) {
-  const response = await fetch("https://api.openai.com/v1/chat/completions", {
+type CompatibleAiConfig = {
+  apiKey: string
+  baseUrl: string
+  model: string
+  providerLabel: string
+}
+
+function trimTrailingSlash(value: string) {
+  return value.replace(/\/+$/, "")
+}
+
+async function runOpenAICompatibleCommand(command: string, dataSummary: string, config: CompatibleAiConfig) {
+  const response = await fetch(`${trimTrailingSlash(config.baseUrl)}/chat/completions`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
+      Authorization: `Bearer ${config.apiKey}`,
+      ...(config.providerLabel === "OpenRouter" ? {
+        "HTTP-Referer": process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000",
+        "X-Title": "GNIX ERP",
+      } : {}),
     },
     body: JSON.stringify({
-      model: "gpt-4o-mini",
+      model: config.model,
       messages: [
         {
           role: "system",
@@ -44,7 +59,7 @@ async function runOpenAICommand(command: string, dataSummary: string, apiKey: st
 
   if (!response.ok) {
     const details = await response.text()
-    throw new Error(`OpenAI a refuse la requete (${response.status}). ${details.slice(0, 180)}`)
+    throw new Error(`${config.providerLabel} a refuse la requete (${response.status}). ${details.slice(0, 220)}`)
   }
 
   const payload = await response.json()
@@ -57,13 +72,21 @@ async function runOpenAICommand(command: string, dataSummary: string, apiKey: st
 export async function processAICommand(command: string) {
   const settings = await getSettingsData()
   const configuredProvider = settings?.ai_provider || "gemini"
+  const aiBaseUrl = typeof settings?.notifications?.ai_base_url === "string" ? settings.notifications.ai_base_url : ""
+  const aiModel = typeof settings?.notifications?.ai_model === "string" ? settings.notifications.ai_model : ""
   const rawAiKey = settings?.ai_api_key?.trim() || ""
   const rawOpenAiKey = settings?.openai_api_key?.trim() || ""
-  const keyLooksOpenAI = rawAiKey.startsWith("sk-") || rawOpenAiKey.startsWith("sk-")
-  const provider = configuredProvider === "openai" || keyLooksOpenAI ? "openai" : "gemini"
+  const keyLooksOpenRouter = rawAiKey.startsWith("sk-or-") || rawOpenAiKey.startsWith("sk-or-")
+  const keyLooksOpenAI = !keyLooksOpenRouter && (rawAiKey.startsWith("sk-") || rawOpenAiKey.startsWith("sk-"))
+  const provider = configuredProvider === "gemini" && keyLooksOpenRouter
+    ? "openrouter"
+    : configuredProvider === "gemini" && keyLooksOpenAI
+      ? "openai"
+      : configuredProvider
   const openAiKey = rawOpenAiKey || (keyLooksOpenAI ? rawAiKey : "")
+  const compatibleKey = provider === "openai" ? openAiKey : rawAiKey || rawOpenAiKey
   const geminiKey = provider === "gemini" ? rawAiKey || process.env.GEMINI_API_KEY : process.env.GEMINI_API_KEY
-  const apiKey = provider === "openai" ? openAiKey : geminiKey
+  const apiKey = provider === "gemini" ? geminiKey : compatibleKey
   const dataSummary = await getAppDataSummary()
 
   if (!apiKey) {
@@ -85,8 +108,37 @@ export async function processAICommand(command: string) {
   }
 
   try {
-    if (provider === "openai" && apiKey) {
-      return await runOpenAICommand(command, dataSummary, apiKey)
+    if (provider !== "gemini" && apiKey) {
+      const compatibleConfigByProvider: Record<string, Omit<CompatibleAiConfig, "apiKey">> = {
+        openai: {
+          baseUrl: "https://api.openai.com/v1",
+          model: "gpt-4o-mini",
+          providerLabel: "OpenAI",
+        },
+        openrouter: {
+          baseUrl: "https://openrouter.ai/api/v1",
+          model: "openrouter/free",
+          providerLabel: "OpenRouter",
+        },
+        kimi: {
+          baseUrl: "https://api.moonshot.ai/v1",
+          model: "moonshot-v1-8k",
+          providerLabel: "Kimi",
+        },
+        custom: {
+          baseUrl: aiBaseUrl || "https://api.openai.com/v1",
+          model: aiModel || "gpt-4o-mini",
+          providerLabel: "Modele compatible OpenAI",
+        },
+      }
+      const preset = compatibleConfigByProvider[provider] ?? compatibleConfigByProvider.custom
+
+      return await runOpenAICompatibleCommand(command, dataSummary, {
+        apiKey,
+        baseUrl: aiBaseUrl || preset.baseUrl,
+        model: aiModel || preset.model,
+        providerLabel: preset.providerLabel,
+      })
     }
 
     const genAI = new GoogleGenerativeAI(apiKey)

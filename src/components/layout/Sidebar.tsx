@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { 
@@ -10,7 +10,6 @@ import {
   Wallet, 
   Package, 
   Settings,
-  ShieldCheck,
   Building2,
   Calendar,
   MessageSquare,
@@ -18,8 +17,6 @@ import {
   BarChart3,
   Calculator,
   FileText,
-  Clock,
-  Truck,
   Mail,
   ChevronDown,
   ChevronRight,
@@ -141,21 +138,27 @@ const settingsNavigation = {
   ]
 }
 
-export function Sidebar() {
+export function Sidebar({ organizationCategory }: { organizationCategory?: string }) {
   const pathname = usePathname()
   const { isSidebarOpen, isSidebarCollapsed, closeSidebar } = useUI()
   const [mounted, setMounted] = useState(false)
   const [expandedItems, setExpandedItems] = useState<string[]>([])
+  const visibleNavigation = useMemo(
+    () => organizationCategory === "service"
+      ? navigation.filter((item) => item.href !== "/logistique")
+      : navigation,
+    [organizationCategory]
+  )
 
   useEffect(() => {
     setMounted(true)
-    const activeItem = [...navigation, settingsNavigation].find(item => 
+    const activeItem = [...visibleNavigation, settingsNavigation].find(item =>
       item.subItems?.some(sub => pathname === sub.href)
     )
     if (activeItem) {
       setExpandedItems(prev => prev.includes(activeItem.name) ? prev : [...prev, activeItem.name])
     }
-  }, [pathname])
+  }, [pathname, visibleNavigation])
 
   const toggleExpand = (name: string) => {
     setExpandedItems(prev => 
@@ -214,7 +217,7 @@ export function Sidebar() {
               <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-2 mb-4 animate-in fade-in">Système ERP Intelligent</p>
             )}
             <nav className="flex flex-col space-y-1">
-              {navigation.map((item) => {
+              {visibleNavigation.map((item) => {
                 const isExpanded = expandedItems.includes(item.name)
                 const hasSubItems = item.subItems && item.subItems.length > 0
                 const isActive = pathname === item.href || (hasSubItems && item.subItems?.some(s => pathname === s.href))
